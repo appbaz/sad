@@ -100,13 +100,13 @@ export async function login(secret, rawUsername, options = {}) {
     options.quick === true ||
     (options.quick !== false && (await canQuickLogin(username)));
 
-  if (!quick) {
-    if (!secret) throw new Error("সিক্রেট দিন");
-    await validateSecret(secret);
-  }
+  if (!quick && !secret) throw new Error("সিক্রেট দিন");
 
   const cred = await signInAnonymously(auth);
   try {
+    if (!quick) {
+      await validateSecret(secret);
+    }
     const user = await attachDeviceSession(cred.user.uid, username);
     const now = Date.now();
     const existing = await getDeviceSession();
