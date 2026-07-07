@@ -125,6 +125,36 @@ export async function dismissInstallPrompt() {
   return setPreference("installDismissedAt", Date.now());
 }
 
+const DEVICE_SESSION_KEY = "deviceSession";
+
+export async function getDeviceSession() {
+  return getPreference(DEVICE_SESSION_KEY);
+}
+
+export async function saveDeviceSession(session) {
+  if (!session) {
+    const store = await tx(PREFS_STORE, "readwrite");
+    return new Promise((resolve, reject) => {
+      const req = store.delete(DEVICE_SESSION_KEY);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+  return setPreference(DEVICE_SESSION_KEY, session);
+}
+
+export async function clearDeviceSession() {
+  return saveDeviceSession(null);
+}
+
+export async function touchDeviceSession() {
+  const session = await getDeviceSession();
+  if (!session?.username) return null;
+  const next = { ...session, lastActiveAt: Date.now() };
+  await saveDeviceSession(next);
+  return next;
+}
+
 export function generateLocalId() {
   return `local_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }

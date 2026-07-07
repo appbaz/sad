@@ -131,7 +131,16 @@ export function showChatReady(partner, isOnline) {
   updatePartnerHeader(partner, isOnline);
 }
 
-export function renderMessages(messages, currentUid, pendingLocal = [], onRetry) {
+export function isOwnMessage(msg, username, uid) {
+  return (
+    msg.senderId === username ||
+    msg.senderName === username ||
+    msg.senderUid === uid ||
+    msg.senderId === uid
+  );
+}
+
+export function renderMessages(messages, currentUsername, currentUid, pendingLocal = [], onRetry) {
   const container = document.getElementById("messages");
   document.getElementById("messagesSkeleton")?.remove();
 
@@ -161,7 +170,7 @@ export function renderMessages(messages, currentUid, pendingLocal = [], onRetry)
       lastDate = dateLabel;
     }
 
-    const isOwn = msg.senderId === currentUid;
+    const isOwn = isOwnMessage(msg, currentUsername, currentUid);
     const rowClass = isOwn ? "own" : "other";
     const pendingClass = msg.status === "pending" ? "pending" : "";
     const failedClass = msg.status === "failed" ? "failed" : "";
@@ -244,4 +253,32 @@ export function setRegisterTabEnabled(enabled) {
     tab.classList.toggle("disabled", !enabled);
   }
   if (link) link.classList.toggle("d-none", !enabled);
+}
+
+export function setQuickLoginMode(enabled, username = "") {
+  const secretWrap = document.getElementById("secretFieldWrap");
+  const hint = document.getElementById("quickLoginHint");
+  const secretInput = document.getElementById("secretInput");
+  const usernameInput = document.getElementById("loginUsername");
+  const loginBtnText = document.querySelector(".login-btn-text");
+
+  secretWrap?.classList.toggle("d-none", enabled);
+  hint?.classList.toggle("d-none", !enabled);
+
+  if (secretInput) {
+    if (enabled) {
+      secretInput.removeAttribute("required");
+      secretInput.value = "";
+    } else {
+      secretInput.setAttribute("required", "");
+    }
+  }
+
+  if (enabled && username && usernameInput) {
+    usernameInput.value = username;
+  }
+
+  if (loginBtnText) {
+    loginBtnText.textContent = enabled ? "চালিয়ে যান" : "প্রবেশ করুন";
+  }
 }

@@ -3,6 +3,8 @@ export const MAX_MESSAGE_LENGTH = 1000;
 export const MIN_USER_ID_LENGTH = 2;
 export const MAX_USER_ID_LENGTH = 20;
 export const APP_NAME = "Private Chat";
+export const QUICK_LOGIN_IDLE_MS = 10 * 60 * 1000;
+export const ONLINE_THRESHOLD_MS = 90 * 1000;
 
 export function normalizeUserId(raw) {
   return String(raw || "")

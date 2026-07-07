@@ -92,8 +92,9 @@ export async function sendMessageToServer(convId, text, localId = null) {
   const messagesRef = collection(db, "conversations", convId, "messages");
 
   await addDoc(messagesRef, {
-    senderId: me.uid,
-    senderName: me.username,
+    senderId: me.username,
+    senderName: me.displayName || me.username,
+    senderUid: me.uid,
     text,
     createdAt: serverTimestamp(),
     read: false,
@@ -107,10 +108,7 @@ export async function sendMessageToServer(convId, text, localId = null) {
   );
 
   for (const uname of otherUsernames) {
-    const otherUid = await resolveUidByUsername(uname);
-    if (otherUid) {
-      unreadCount[otherUid] = (unreadCount[otherUid] || 0) + 1;
-    }
+    unreadCount[uname] = (unreadCount[uname] || 0) + 1;
   }
 
   await updateDoc(convRef, {
@@ -141,8 +139,8 @@ export async function sendMessage(otherUsername, text, options = {}) {
   const optimistic = {
     id: localId,
     localId,
-    senderId: me.uid,
-    senderName: me.username,
+    senderId: me.username,
+    senderName: me.displayName || me.username,
     text: trimmed,
     createdAt: Date.now(),
     status: "sending",
@@ -155,8 +153,8 @@ export async function sendMessage(otherUsername, text, options = {}) {
       convId,
       otherUsername,
       text: trimmed,
-      senderId: me.uid,
-      senderName: me.username,
+      senderId: me.username,
+      senderName: me.displayName || me.username,
       createdAt: Date.now(),
       status: "pending",
       retries: 0,
@@ -176,8 +174,8 @@ export async function sendMessage(otherUsername, text, options = {}) {
       convId,
       otherUsername,
       text: trimmed,
-      senderId: me.uid,
-      senderName: me.username,
+      senderId: me.username,
+      senderName: me.displayName || me.username,
       createdAt: Date.now(),
       status: "pending",
       retries: 0,
@@ -263,9 +261,9 @@ export async function markConversationRead(convId) {
   if (!snap.exists()) return;
 
   const unreadCount = { ...(snap.data().unreadCount || {}) };
-  if (!unreadCount[me.uid]) return;
+  if (!unreadCount[me.username]) return;
 
-  unreadCount[me.uid] = 0;
+  unreadCount[me.username] = 0;
   await updateDoc(convRef, { unreadCount });
 }
 

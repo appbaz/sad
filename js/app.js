@@ -7,8 +7,8 @@ import {
   createMember,
   canRegister,
 } from "./users.js";
-import { login, logout, register, onAuthChange, sendHeartbeat, getCurrentUser } from "./auth.js";
-import { normalizeUserId } from "./constants.js";
+import { login, logout, register, onAuthChange, sendHeartbeat, getCurrentUser, canQuickLogin, getQuickLoginUsername, markDeviceOffline, isUsernameOnline } from "./auth.js";
+import { isInstallDismissed, dismissInstallPrompt, getPendingMessages, touchDeviceSession } from "./store.js";
 import {
   enableOfflinePersistence,
   sendMessage,
@@ -19,7 +19,7 @@ import {
   prepareConversation,
 } from "./chat.js";
 import { initOfflineSync, onConnectionStatusChange, flushOutbox, retryOutboxMessage } from "./offline.js";
-import { isInstallDismissed, dismissInstallPrompt, getPendingMessages } from "./store.js";
+import { normalizeUserId } from "./constants.js";
 import {
   setAuthTab,
   setRegisterLoading,
@@ -40,6 +40,7 @@ import {
   showChatReady,
   updatePartnerHeader,
   setRegisterTabEnabled,
+  setQuickLoginMode,
 } from "./ui.js";
 import {
   bindSoundUnlock,
@@ -74,6 +75,22 @@ let prevConnectionStatus = "online";
 let knownMessageIds = new Set();
 let messagesInitialized = false;
 let currentMessages = [];
+let quickLoginActive = false;
+
+async function refreshQuickLoginUI(username = null) {
+  const inputUsername = normalizeUserId(
+    username || document.getElementById("loginUsername")?.value || ""
+  );
+  const quickUser = await getQuickLoginUsername();
+  const enabled = Boolean(
+    quickUser &&
+    (!inputUsername || inputUsername === quickUser) &&
+    (await canQuickLogin(inputUsername || quickUser))
+  );
+
+  quickLoginActive = enabled;
+  setQuickLoginMode(enabled, enabled ? (inputUsername || quickUser) : null);
+}
 
 async function init() {
   registerServiceWorker();
@@ -94,6 +111,11 @@ async function init() {
   }
 
   setAuthTab("login");
+  await refreshQuickLoginUI();
+
+  document.getElementById("loginUsername")?.addEventListener("input", () => {
+    refreshQuickLoginUI();
+  });
 
   document.getElementById("loginForm").addEventListener("submit", handleLogin);
   document.getElementById("registerForm").addEventListener("submit", handleRegister);
@@ -129,7 +151,31 @@ async function init() {
   onAuthChange(async (user) => {
     if (isLoggingIn) return;
     if (user) enterChat(user);
-    else exitChat();
+    else {
+      exitChat();
+      await refreshQuickLoginUI();
+    }
+  });
+
+  initDeviceLifecycle();
+}
+
+function initDeviceLifecycle() {
+  const markActive = () => touchDeviceSession().catch(() => {});
+
+  document.addEventListener("click", markActive, { passive: true });
+  document.addEventListener("keydown", markActive, { passive: true });
+  document.addEventListener("touchstart", markActive, { passive: true });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && getCurrentUser()) {
+      sendHeartbeat();
+      touchDeviceSession().catch(() => {});
+    }
+  });
+
+  window.addEventListener("pagehide", () => {
+    markDeviceOffline();
   });
 }
 
@@ -193,8 +239,15 @@ async function handleLogin(e) {
   const secret = document.getElementById("secretInput").value;
   const rawUsername = document.getElementById("loginUsername").value;
   const username = normalizeUserId(rawUsername);
+  const quick = quickLoginActive && (await canQuickLogin(username));
 
-  if (!secret || !rawUsername.trim()) {
+  if (!rawUsername.trim()) {
+    showToast("ইউজারনেম দিন");
+    playError();
+    return;
+  }
+
+  if (!quick && !secret) {
     showToast("সিক্রেট ও ইউজারনেম দিন");
     playError();
     return;
@@ -221,7 +274,7 @@ async function handleLogin(e) {
   setLoginLoading(true);
   isLoggingIn = true;
   try {
-    const user = await login(secret, username);
+    const user = await login(secret, username, { quick });
     enterChat(user);
     playLogin();
     showToast("স্বাগতম!", "success");
@@ -320,7 +373,7 @@ async function handleSend() {
     const optimistic = await sendMessage(partnerUsername, text);
     if (optimistic) {
       pendingLocalMessages.push(optimistic);
-      renderMessages(currentMessages, me.uid, pendingLocalMessages, handleRetry);
+      renderMessages(currentMessages, me.username, me.uid, pendingLocalMessages, handleRetry);
     }
     if (navigator.onLine) flushOutbox();
   } catch (err) {
@@ -355,9 +408,8 @@ function startChatSession() {
   unsubscribeUsers = listenToUsers((users) => {
     usersOnline = users;
     if (partnerUsername) {
-      const online = users.find((u) => u.username === partnerUsername);
       const partner = getMemberById(partnerUsername);
-      if (partner) updatePartnerHeader(partner, online?.isOnline ?? false);
+      if (partner) updatePartnerHeader(partner, isUsernameOnline(users, partnerUsername));
     }
   });
 
@@ -377,8 +429,8 @@ async function openPartnerChat(partner) {
   if (!me || !partner) return;
 
   partnerUsername = partner.id;
-  const onlineUser = usersOnline.find((u) => u.username === partner.id);
-  showChatReady(partner, onlineUser?.isOnline ?? false);
+  const onlineUser = isUsernameOnline(usersOnline, partner.id);
+  showChatReady(partner, onlineUser);
   focusMessageInput();
 
   if (unsubscribeMessages) unsubscribeMessages();
@@ -410,7 +462,7 @@ async function openPartnerChat(partner) {
       messagesInitialized = true;
     } else {
       const incoming = messages.filter(
-        (m) => !knownMessageIds.has(m.id) && m.senderId !== me.uid
+        (m) => !knownMessageIds.has(m.id) && m.senderId !== me.username && m.senderName !== me.username
       );
       if (incoming.length > 0) playReceive();
       messages.forEach((m) => knownMessageIds.add(m.id));
@@ -424,8 +476,8 @@ async function openPartnerChat(partner) {
       .map((p) => ({
         id: p.id,
         localId: p.id,
-        senderId: me.uid,
-        senderName: me.username,
+        senderId: me.username,
+        senderName: me.displayName || me.username,
         text: p.text,
         createdAt: p.createdAt,
         status: p.status === "failed" ? "failed" : "pending",
@@ -438,7 +490,7 @@ async function openPartnerChat(partner) {
       }
     });
 
-    renderMessages(currentMessages, me.uid, pendingLocalMessages, handleRetry);
+    renderMessages(currentMessages, me.username, me.uid, pendingLocalMessages, handleRetry);
     await markConversationRead(convId);
   });
 }
