@@ -1,4 +1,4 @@
-const CACHE_NAME = "chat-app-v11";
+const CACHE_NAME = "chat-app-v12";
 
 const ASSETS = [
   "./",
@@ -12,7 +12,8 @@ const ASSETS = [
   "./js/users.js",
   "./js/errors.js",
   "./js/offline.js",
-  "./js/crypto-utils.js",
+  "./js/router.js",
+  "./js/rooms.js",
   "./js/auth.js",
   "./js/chat.js",
   "./js/ui.js",

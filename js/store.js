@@ -149,7 +149,7 @@ export async function clearDeviceSession() {
 
 export async function touchDeviceSession() {
   const session = await getDeviceSession();
-  if (!session?.username) return null;
+  if (!session?.username || !session?.roomId) return null;
   const next = { ...session, lastActiveAt: Date.now() };
   await saveDeviceSession(next);
   return next;

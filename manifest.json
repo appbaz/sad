@@ -1,7 +1,7 @@
 {
   "name": "Private Chat",
   "short_name": "Chat",
-  "description": "Private one-to-one chat between two people",
+  "description": "শেয়ারেবল লিংক দিয়ে দুজনের প্রাইভেট চ্যাট রুম",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",

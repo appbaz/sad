@@ -1,55 +1,54 @@
 # Private Chat
 
-শুধু **দুজনের** জন্য একটি প্রাইভেট এক-টু-এক PWA চ্যাট অ্যাপ। HTML, CSS, Bootstrap 5 ও vanilla JS। Firebase Firestore রিয়েলটাইম মেসেজিং ও অফলাইন সিঙ্ক।
+দুজনের জন্য প্রাইভেট চ্যাট রুম — **শেয়ারেবল লিংক** দিয়ে যোগ দিন, **শুধু ইউজারনেম** দিয়ে চ্যাট করুন।
 
 ## ফিচার
 
-- শুধু ১-টু-১ — দুজনের মধ্যে সরাসরি চ্যাট
-- সর্বোচ্চ ২ জন রেজিস্টার
-- শেয়ার্ড সিক্রেট + ইউজারনেম লগইন/রেজিস্টার
+- রুম তৈরি + শেয়ার লিংক (`#/room/abc123`)
+- প্রতি রুমে সর্বোচ্চ ২ জন
+- শুধু ইউজারনেম দিয়ে লগইন (সিক্রেট নেই)
 - PWA — হোম স্ক্রিনে ইনস্টল
 - অফলাইন মেসেজ সিঙ্ক
-- Premium procedural sounds
 
 ## Firebase সেটআপ
 
-1. Firestore + Anonymous Auth enable
+1. Firestore + **Anonymous Auth** enable করুন
 2. `js/firebase-config.js` — আপনার config
-3. `config/app` document:
-   ```json
-   { "secretHash": "sha256-hash", "maxUsers": 2 }
-   ```
-4. [`firestore.rules`](firestore.rules) publish করুন
-5. Authorized domains: `localhost`, `username.github.io`
+3. [`firestore.rules`](firestore.rules) Firebase Console-এ **Publish** করুন
+4. Authorized domains: `localhost`, আপনার GitHub Pages ডোমেইন
+
+> পুরনো `config/app`, `members`, `conversations` collection আর ব্যবহার হয় না।
 
 ## Firestore Collections
 
 ```
-members/{userId}     — ২ জনের প্রোফাইল (রেজিস্টারে তৈরি)
-users/{uid}          — online status
-usernames/{id}       — username → uid mapping
-conversations/       — একটাই ১-টু-১ চ্যাট
-```
+rooms/{roomId}
+  ├── memberCount, status, createdAt
+  ├── members/{username}   — প্রোফাইল
+  └── messages/{msgId}     — চ্যাট মেসেজ
 
-> পুরনো `teamUsers` collection ব্যবহার করলে Firestore-এ `members` নামে নতুন collection ব্যবহার করুন।
+users/{uid}                — online status (roomId + username)
+```
 
 ## ব্যবহার
 
-### প্রথম ব্যক্তি
-1. **রেজিস্টার** → সিক্রেট + ইউজারনেম + নাম
-2. "সঙ্গীর অপেক্ষায়..." দেখাবে
+### রুম তৈরি
+1. অ্যাপ খুলুন → **নতুন চ্যাট রুম তৈরি করুন**
+2. শেয়ার লিংক কপি করে সঙ্গীকে পাঠান
+3. ইউজারনেম + নাম দিয়ে রেজিস্টার করুন
 
-### দ্বিতীয় ব্যক্তি
-1. একই সিক্রেট দিয়ে **রেজিস্টার**
-2. স্বয়ংক্রিয়ভাবে চ্যাট শুরু
+### সঙ্গী যোগ দেয়
+1. লিংক খুলুন
+2. ইউজারনেম + নাম দিয়ে রেজিস্টার করুন
+3. চ্যাট শুরু
 
-### পরবর্তীতে
-- **প্রবেশ** ট্যাবে লগইন → সরাসরি সঙ্গীর সাথে চ্যাট
+### পরবর্তী প্রবেশ
+- লিংক খুলে শুধু ইউজারনেম দিয়ে প্রবেশ করুন
 
 ## লোকাল টেস্ট
 
 ```bash
-python3 -m http.server 8080
+python -m http.server 8080
 ```
 
-দুই ব্রাউজার/Incognito-তে দুই জন রেজিস্টার করে টেস্ট করুন।
+দুই ব্রাউজার/Incognito-তে টেস্ট করুন।

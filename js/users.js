@@ -8,18 +8,26 @@ import {
   serverTimestamp,
   query,
   orderBy,
+  runTransaction,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { db } from "./firebase.js";
 import {
-  MAX_USERS,
+  MAX_MEMBERS_PER_ROOM,
   validateUserId,
   validateDisplayName,
   normalizeUserId,
 } from "./constants.js";
 
-const MEMBERS_COL = "members";
-
 let membersCache = [];
+let activeRoomId = null;
+
+function membersRef(roomId) {
+  return collection(db, "rooms", roomId, "members");
+}
+
+function memberDoc(roomId, username) {
+  return doc(db, "rooms", roomId, "members", username);
+}
 
 function sortMembers(members) {
   return [...members].sort((a, b) => a.name.localeCompare(b.name));
@@ -42,7 +50,7 @@ export function getMemberCount() {
 }
 
 export function canRegister() {
-  return membersCache.length < MAX_USERS;
+  return membersCache.length < MAX_MEMBERS_PER_ROOM;
 }
 
 export function getUserIndex(id) {
@@ -50,13 +58,14 @@ export function getUserIndex(id) {
   return sorted.findIndex((u) => u.id === id);
 }
 
-export async function fetchMembersOnce() {
+export async function fetchMembersOnce(roomId) {
+  activeRoomId = roomId;
   try {
-    const snap = await getDocs(query(collection(db, MEMBERS_COL), orderBy("name")));
+    const snap = await getDocs(query(membersRef(roomId), orderBy("name")));
     membersCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   } catch (err) {
     if (err?.code === "failed-precondition") {
-      const snap = await getDocs(collection(db, MEMBERS_COL));
+      const snap = await getDocs(membersRef(roomId));
       membersCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     } else {
       throw err;
@@ -65,9 +74,10 @@ export async function fetchMembersOnce() {
   return sortMembers(membersCache);
 }
 
-export function listenToMembers(callback) {
+export function listenToMembers(roomId, callback) {
+  activeRoomId = roomId;
   return onSnapshot(
-    query(collection(db, MEMBERS_COL), orderBy("name")),
+    query(membersRef(roomId), orderBy("name")),
     (snap) => {
       membersCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       callback(sortMembers(membersCache));
@@ -79,7 +89,7 @@ export function listenToMembers(callback) {
   );
 }
 
-export async function createMember(rawId, rawName) {
+export async function createMember(roomId, rawId, rawName) {
   const id = normalizeUserId(rawId);
   const idError = validateUserId(id);
   if (idError) throw new Error(idError);
@@ -88,28 +98,48 @@ export async function createMember(rawId, rawName) {
   const nameError = validateDisplayName(name);
   if (nameError) throw new Error(nameError);
 
-  if (membersCache.length >= MAX_USERS) {
-    throw new Error("এই চ্যাটে ইতিমধ্যে ২ জন আছে — নতুন রেজিস্টার করা যাবে না");
-  }
+  const roomRef = doc(db, "rooms", roomId);
+  const newMemberRef = memberDoc(roomId, id);
 
-  const existing = await getDoc(doc(db, MEMBERS_COL, id));
-  if (existing.exists()) {
-    throw new Error("এই ইউজারনেম ইতিমধ্যে আছে — প্রবেশ করুন");
-  }
+  await runTransaction(db, async (tx) => {
+    const roomSnap = await tx.get(roomRef);
+    if (!roomSnap.exists()) {
+      throw new Error("রুম পাওয়া যায়নি — লিংক যাচাই করুন");
+    }
 
-  await setDoc(doc(db, MEMBERS_COL, id), {
-    id,
-    name,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+    const memberCount = roomSnap.data().memberCount || 0;
+    if (memberCount >= MAX_MEMBERS_PER_ROOM) {
+      throw new Error("রুম পূর্ণ — আর কেউ যোগ দিতে পারবে না");
+    }
+
+    const existing = await tx.get(newMemberRef);
+    if (existing.exists()) {
+      throw new Error("এই ইউজারনেম ইতিমধ্যে আছে — প্রবেশ করুন");
+    }
+
+    tx.set(newMemberRef, {
+      id,
+      name,
+      joinedAt: serverTimestamp(),
+    });
+
+    const newCount = memberCount + 1;
+    tx.update(roomRef, {
+      memberCount: newCount,
+      status: newCount >= MAX_MEMBERS_PER_ROOM ? "active" : "waiting",
+      lastActivityAt: serverTimestamp(),
+      ...(newCount === 1 ? { createdBy: id } : {}),
+    });
   });
 
   membersCache = [...membersCache, { id, name }];
 }
 
-// পুরনো কোডের সাথে সামঞ্জস্য
-export const getTeamUsers = getMembers;
-export const getTeamUserById = getMemberById;
-export const fetchTeamUsersOnce = fetchMembersOnce;
-export const listenToTeamUsers = listenToMembers;
-export const createTeamUser = createMember;
+export function clearMembersCache() {
+  membersCache = [];
+  activeRoomId = null;
+}
+
+export function getActiveRoomId() {
+  return activeRoomId;
+}

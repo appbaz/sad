@@ -1,4 +1,6 @@
 export const MAX_USERS = 2;
+export const MAX_MEMBERS_PER_ROOM = 2;
+export const ROOM_ID_PATTERN = /^[a-z0-9]{12,20}$/;
 export const MAX_MESSAGE_LENGTH = 1000;
 export const MIN_USER_ID_LENGTH = 2;
 export const MAX_USER_ID_LENGTH = 20;

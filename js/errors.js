@@ -2,13 +2,13 @@ export function formatFirebaseError(err) {
   const code = err?.code || "";
   const message = err?.message || String(err || "অজানা ত্রুটি");
 
-  if (message.includes("ভুল সিক্রেট") || message.includes("কনফিগার")) {
+  if (message.includes("রুম পূর্ণ") || message.includes("রুম পাওয়া যায়নি")) {
     return message;
   }
 
   switch (code) {
     case "permission-denied":
-      return "Firestore অনুমতি নেই — Firebase Console থেকে firestore.rules Publish করুন (conversations + members)";
+      return "Firestore অনুমতি নেই — Firebase Console থেকে firestore.rules Publish করুন";
     case "auth/operation-not-allowed":
       return "Anonymous Authentication Firebase-এ enable করুন";
     case "auth/network-request-failed":
@@ -19,10 +19,6 @@ export function formatFirebaseError(err) {
       return "Firestore index লাগতে পারে — Console-এর লিংক থেকে index তৈরি করুন";
     default:
       break;
-  }
-
-  if (/secret|hash/i.test(message)) {
-    return "ভুল সিক্রেট — Firebase-এর secretHash যে পাসওয়ার্ড দিয়ে তৈরি, সেটাই ব্যবহার করুন";
   }
 
   return message;

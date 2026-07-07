@@ -4,19 +4,35 @@ import {
   getMembers,
   fetchMembersOnce,
   listenToMembers,
-  createMember,
   canRegister,
+  clearMembersCache,
 } from "./users.js";
-import { login, logout, register, onAuthChange, sendHeartbeat, getCurrentUser, canQuickLogin, getQuickLoginUsername, markDeviceOffline, isUsernameOnline } from "./auth.js";
+import {
+  login,
+  logout,
+  register,
+  onAuthChange,
+  sendHeartbeat,
+  getCurrentUser,
+  canQuickLogin,
+  getQuickLoginUsername,
+  markDeviceOffline,
+  isUsernameOnline,
+  ensureAnonymousAuth,
+} from "./auth.js";
+import { createRoom, getRoom, isRoomFull } from "./rooms.js";
+import {
+  navigateToRoom,
+  buildShareLink,
+  parseRoomIdFromInput,
+  onRouteChange,
+} from "./router.js";
 import { isInstallDismissed, dismissInstallPrompt, getPendingMessages, touchDeviceSession } from "./store.js";
 import {
   enableOfflinePersistence,
   sendMessage,
   listenToMessages,
-  listenToUsers,
-  markConversationRead,
-  getConversationId,
-  prepareConversation,
+  listenToRoomUsers,
 } from "./chat.js";
 import { initOfflineSync, onConnectionStatusChange, flushOutbox, retryOutboxMessage } from "./offline.js";
 import { normalizeUserId } from "./constants.js";
@@ -41,6 +57,12 @@ import {
   updatePartnerHeader,
   setRegisterTabEnabled,
   setQuickLoginMode,
+  setShareLink,
+  setRoomInfo,
+  setHomeLoading,
+  setJoinLoading,
+  showInvalidRoom,
+  hideInvalidRoom,
 } from "./ui.js";
 import {
   bindSoundUnlock,
@@ -60,6 +82,8 @@ import {
 } from "./sounds.js";
 import { formatFirebaseError } from "./errors.js";
 
+let currentRoomId = null;
+let currentShareLink = "";
 let partnerUsername = null;
 let unsubscribeMessages = null;
 let unsubscribeUsers = null;
@@ -78,18 +102,59 @@ let currentMessages = [];
 let quickLoginActive = false;
 
 async function refreshQuickLoginUI(username = null) {
+  if (!currentRoomId) {
+    quickLoginActive = false;
+    setQuickLoginMode(false);
+    return;
+  }
+
   const inputUsername = normalizeUserId(
     username || document.getElementById("loginUsername")?.value || ""
   );
-  const quickUser = await getQuickLoginUsername();
+  const quickUser = await getQuickLoginUsername(currentRoomId);
   const enabled = Boolean(
     quickUser &&
     (!inputUsername || inputUsername === quickUser) &&
-    (await canQuickLogin(inputUsername || quickUser))
+    (await canQuickLogin(currentRoomId, inputUsername || quickUser))
   );
 
   quickLoginActive = enabled;
   setQuickLoginMode(enabled, enabled ? (inputUsername || quickUser) : null);
+}
+
+async function bootstrapRoom(roomId) {
+  currentRoomId = roomId;
+  hideInvalidRoom();
+  clearMembersCache();
+
+  const room = await getRoom(roomId);
+  if (!room) {
+    showView("join");
+    showInvalidRoom("রুম পাওয়া যায়নি — লিংক যাচাই করুন");
+    return;
+  }
+
+  currentShareLink = buildShareLink(roomId);
+  setShareLink(currentShareLink);
+  setRoomInfo(roomId, room.memberCount || 0);
+
+  try {
+    await fetchMembersOnce(roomId);
+    members = getMembers();
+    setRegisterTabEnabled(canRegister() && !isRoomFull(room));
+  } catch (err) {
+    console.warn("members fetch failed:", err);
+    setRegisterTabEnabled(false);
+  }
+
+  showView("join");
+  setAuthTab("login");
+  await refreshQuickLoginUI();
+
+  const user = getCurrentUser();
+  if (user?.roomId === roomId) {
+    enterChat(user);
+  }
 }
 
 async function init() {
@@ -102,17 +167,6 @@ async function init() {
   onConnectionStatusChange(handleConnectionChange);
   await enableOfflinePersistence();
 
-  try {
-    await fetchMembersOnce();
-    members = getMembers();
-    setRegisterTabEnabled(canRegister());
-  } catch (err) {
-    console.warn("members fetch failed:", err);
-  }
-
-  setAuthTab("login");
-  await refreshQuickLoginUI();
-
   document.getElementById("loginUsername")?.addEventListener("input", () => {
     refreshQuickLoginUI();
   });
@@ -121,8 +175,8 @@ async function init() {
   document.getElementById("registerForm").addEventListener("submit", handleRegister);
   document.getElementById("loginTabBtn").addEventListener("click", () => { playTap(); setAuthTab("login"); });
   document.getElementById("registerTabBtn").addEventListener("click", () => {
-    if (!canRegister()) {
-      showToast("ইতিমধ্যে ২ জন রেজিস্টার হয়েছে");
+    if (!canRegister() || isRoomFull({ memberCount: members.length })) {
+      showToast("রুম পূর্ণ — প্রবেশ করুন");
       return;
     }
     playTap();
@@ -130,7 +184,7 @@ async function init() {
   });
   document.getElementById("goRegisterLink").addEventListener("click", () => {
     if (!canRegister()) {
-      showToast("ইতিমধ্যে ২ জন রেজিস্টার হয়েছে");
+      showToast("রুম পূর্ণ — প্রবেশ করুন");
       return;
     }
     playTap();
@@ -147,14 +201,32 @@ async function init() {
   document.getElementById("sendBtn").addEventListener("click", handleSend);
   document.getElementById("messageInput").addEventListener("input", handleInputChange);
   document.getElementById("messageInput").addEventListener("keydown", handleInputKeydown);
+  document.getElementById("createRoomBtn")?.addEventListener("click", handleCreateRoom);
+  document.getElementById("joinRoomBtn")?.addEventListener("click", handleJoinFromHome);
+  document.getElementById("copyLinkBtn")?.addEventListener("click", handleCopyLink);
+  document.getElementById("shareLinkBtn")?.addEventListener("click", handleShareLink);
 
   onAuthChange(async (user) => {
     if (isLoggingIn) return;
-    if (user) enterChat(user);
-    else {
+    if (user && currentRoomId && user.roomId === currentRoomId) {
+      enterChat(user);
+    } else if (user && currentRoomId && user.roomId !== currentRoomId) {
+      await logout();
+    } else if (!user && sessionStarted) {
       exitChat();
       await refreshQuickLoginUI();
     }
+  });
+
+  onRouteChange(async (roomId) => {
+    if (!roomId) {
+      currentRoomId = null;
+      currentShareLink = "";
+      clearMembersCache();
+      showView("home");
+      return;
+    }
+    await bootstrapRoom(roomId);
   });
 
   initDeviceLifecycle();
@@ -182,6 +254,7 @@ function initDeviceLifecycle() {
 function onMembersUpdated(list) {
   members = list;
   setRegisterTabEnabled(canRegister());
+  setRoomInfo(currentRoomId, list.length);
 
   const me = getCurrentUser();
   if (!me) return;
@@ -190,7 +263,7 @@ function onMembersUpdated(list) {
   if (partner && !partnerUsername) {
     openPartnerChat(partner);
   } else if (!partner) {
-    showWaitingForPartner();
+    showWaitingForPartner(currentShareLink);
   }
 }
 
@@ -216,6 +289,64 @@ async function handleSoundToggle() {
   if (isSoundEnabled()) playTap();
 }
 
+async function handleCreateRoom() {
+  setHomeLoading(true);
+  try {
+    await ensureAnonymousAuth();
+    const roomId = await createRoom();
+    navigateToRoom(roomId);
+    playTap();
+    showToast("রুম তৈরি হয়েছে — লিংক শেয়ার করুন", "success");
+  } catch (err) {
+    console.error("Create room failed:", err);
+    playError();
+    showToast(formatFirebaseError(err));
+  } finally {
+    setHomeLoading(false);
+  }
+}
+
+function handleJoinFromHome() {
+  const input = document.getElementById("pasteRoomInput")?.value || "";
+  const roomId = parseRoomIdFromInput(input);
+  if (!roomId) {
+    showToast("সঠিক রুম লিংক বা কোড দিন");
+    playError();
+    return;
+  }
+  setJoinLoading(true);
+  navigateToRoom(roomId);
+  setJoinLoading(false);
+}
+
+async function handleCopyLink() {
+  if (!currentShareLink) return;
+  try {
+    await navigator.clipboard.writeText(currentShareLink);
+    showToast("লিংক কপি হয়েছে", "success");
+    playTap();
+  } catch {
+    showToast("কপি করা যায়নি");
+  }
+}
+
+async function handleShareLink() {
+  if (!currentShareLink) return;
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: "Private Chat",
+        text: "আমার সাথে চ্যাট করুন",
+        url: currentShareLink,
+      });
+      return;
+    } catch {
+      /* user cancelled */
+    }
+  }
+  await handleCopyLink();
+}
+
 function enterChat(user) {
   showView("chat");
   if (!sessionStarted) {
@@ -224,22 +355,31 @@ function enterChat(user) {
   }
   const partner = getOtherMember(user.username);
   if (partner) openPartnerChat(partner);
-  else showWaitingForPartner();
+  else showWaitingForPartner(currentShareLink);
 }
 
 function exitChat() {
   stopChatSession();
   sessionStarted = false;
   partnerUsername = null;
-  showView("login");
+  if (currentRoomId) {
+    showView("join");
+    refreshQuickLoginUI();
+  } else {
+    showView("home");
+  }
 }
 
 async function handleLogin(e) {
   e.preventDefault();
-  const secret = document.getElementById("secretInput").value;
+  if (!currentRoomId) {
+    showToast("প্রথমে রুম লিংক খুলুন");
+    return;
+  }
+
   const rawUsername = document.getElementById("loginUsername").value;
   const username = normalizeUserId(rawUsername);
-  const quick = quickLoginActive && (await canQuickLogin(username));
+  const quick = quickLoginActive && (await canQuickLogin(currentRoomId, username));
 
   if (!rawUsername.trim()) {
     showToast("ইউজারনেম দিন");
@@ -247,14 +387,8 @@ async function handleLogin(e) {
     return;
   }
 
-  if (!quick && !secret) {
-    showToast("সিক্রেট ও ইউজারনেম দিন");
-    playError();
-    return;
-  }
-
   try {
-    await fetchMembersOnce();
+    await fetchMembersOnce(currentRoomId);
     members = getMembers();
     setRegisterTabEnabled(canRegister());
   } catch { /* proceed */ }
@@ -274,7 +408,7 @@ async function handleLogin(e) {
   setLoginLoading(true);
   isLoggingIn = true;
   try {
-    const user = await login(secret, username, { quick });
+    const user = await login(currentRoomId, username, { quick });
     enterChat(user);
     playLogin();
     showToast("স্বাগতম!", "success");
@@ -290,25 +424,29 @@ async function handleLogin(e) {
 
 async function handleRegister(e) {
   e.preventDefault();
-  const secret = document.getElementById("registerSecret").value;
+  if (!currentRoomId) {
+    showToast("প্রথমে রুম লিংক খুলুন");
+    return;
+  }
+
   const rawId = document.getElementById("registerUserId").value;
   const name = document.getElementById("registerName").value.trim();
   const userId = normalizeUserId(rawId);
 
-  if (!secret || !rawId.trim() || !name) {
-    showToast("সব তথ্য পূরণ করুন");
+  if (!rawId.trim() || !name) {
+    showToast("ইউজারনেম ও নাম দিন");
     playError();
     return;
   }
 
   try {
-    await fetchMembersOnce();
+    await fetchMembersOnce(currentRoomId);
     members = getMembers();
   } catch { /* proceed */ }
 
   if (!canRegister()) {
     playError();
-    showToast("ইতিমধ্যে ২ জন রেজিস্টার হয়েছে — প্রবেশ করুন");
+    showToast("রুম পূর্ণ — প্রবেশ করুন");
     setAuthTab("login");
     return;
   }
@@ -324,7 +462,7 @@ async function handleRegister(e) {
   setRegisterLoading(true);
   isLoggingIn = true;
   try {
-    const user = await register(secret, rawId, name);
+    const user = await register(currentRoomId, rawId, name);
     enterChat(user);
     playLogin();
     showToast("রেজিস্টার সফল!", "success");
@@ -361,7 +499,7 @@ function handleInputKeydown(e) {
 async function handleSend() {
   const input = document.getElementById("messageInput");
   const text = input.value.trim();
-  if (!text || !partnerUsername) return;
+  if (!text || !partnerUsername || !currentRoomId) return;
 
   const me = getCurrentUser();
   if (!me) return;
@@ -370,7 +508,7 @@ async function handleSend() {
   playSend();
 
   try {
-    const optimistic = await sendMessage(partnerUsername, text);
+    const optimistic = await sendMessage(currentRoomId, text);
     if (optimistic) {
       pendingLocalMessages.push(optimistic);
       renderMessages(currentMessages, me.username, me.uid, pendingLocalMessages, handleRetry);
@@ -401,11 +539,11 @@ async function handleRetry(localId) {
 
 function startChatSession() {
   const me = getCurrentUser();
-  if (!me) return;
+  if (!me || !currentRoomId) return;
 
-  unsubscribeMembers = listenToMembers(onMembersUpdated);
+  unsubscribeMembers = listenToMembers(currentRoomId, onMembersUpdated);
 
-  unsubscribeUsers = listenToUsers((users) => {
+  unsubscribeUsers = listenToRoomUsers(currentRoomId, (users) => {
     usersOnline = users;
     if (partnerUsername) {
       const partner = getMemberById(partnerUsername);
@@ -426,7 +564,7 @@ function stopChatSession() {
 
 async function openPartnerChat(partner) {
   const me = getCurrentUser();
-  if (!me || !partner) return;
+  if (!me || !partner || !currentRoomId) return;
 
   partnerUsername = partner.id;
   const onlineUser = isUsernameOnline(usersOnline, partner.id);
@@ -435,21 +573,11 @@ async function openPartnerChat(partner) {
 
   if (unsubscribeMessages) unsubscribeMessages();
 
-  let convId;
-  try {
-    convId = await prepareConversation(me.username, partner.id);
-  } catch (err) {
-    console.error("Conversation prepare failed:", err);
-    playError();
-    showToast(formatFirebaseError(err));
-    return;
-  }
-
   pendingLocalMessages = [];
   knownMessageIds = new Set();
   messagesInitialized = false;
 
-  unsubscribeMessages = listenToMessages(convId, async (messages, err) => {
+  unsubscribeMessages = listenToMessages(currentRoomId, async (messages, err) => {
     if (err) {
       console.error("Messages sync error:", err);
       showToast("মেসেজ লোড করা যায়নি — পেজ রিফ্রেশ করুন");
@@ -472,7 +600,7 @@ async function openPartnerChat(partner) {
 
     const pending = await getPendingMessages();
     pendingLocalMessages = pending
-      .filter((p) => p.convId === convId)
+      .filter((p) => p.roomId === currentRoomId)
       .map((p) => ({
         id: p.id,
         localId: p.id,
@@ -491,7 +619,6 @@ async function openPartnerChat(partner) {
     });
 
     renderMessages(currentMessages, me.username, me.uid, pendingLocalMessages, handleRetry);
-    await markConversationRead(convId);
   });
 }
 

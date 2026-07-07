@@ -10,9 +10,8 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { auth, db } from "./firebase.js";
-import { createTeamUser } from "./users.js";
+import { createMember } from "./users.js";
 import { normalizeUserId, validateUserId, QUICK_LOGIN_IDLE_MS } from "./constants.js";
-import { sha256Hex } from "./crypto-utils.js";
 import {
   getDeviceSession,
   saveDeviceSession,
@@ -22,52 +21,37 @@ import {
 
 let currentUserDoc = null;
 
-export async function hashSecret(secret) {
-  return sha256Hex(secret);
-}
-
-async function validateSecret(secret) {
-  const configRef = doc(db, "config", "app");
-  const snap = await getDoc(configRef);
-  if (!snap.exists()) {
-    throw new Error("অ্যাপ কনফিগার করা হয়নি। Firebase Console-এ config/app সেট করুন।");
-  }
-  const storedHash = snap.data().secretHash;
-  const inputHash = await hashSecret(secret);
-  if (inputHash !== storedHash) {
-    throw new Error("ভুল সিক্রেট। আবার চেষ্টা করুন।");
-  }
-}
-
-export async function canQuickLogin(username) {
+export async function canQuickLogin(roomId, username) {
   const normalized = normalizeUserId(username);
-  if (!normalized) return false;
+  if (!normalized || !roomId) return false;
 
   const session = await getDeviceSession();
   if (!session?.username || session.username !== normalized) return false;
-  if (!session.secretVerifiedAt) return false;
+  if (!session?.roomId || session.roomId !== roomId) return false;
 
-  const lastActive = session.lastActiveAt || session.secretVerifiedAt;
+  const lastActive = session.lastActiveAt || 0;
   return Date.now() - lastActive < QUICK_LOGIN_IDLE_MS;
 }
 
-export async function getQuickLoginUsername() {
+export async function getQuickLoginUsername(roomId) {
   const session = await getDeviceSession();
-  if (!session?.username) return null;
-  return (await canQuickLogin(session.username)) ? session.username : null;
+  if (!session?.username || session.roomId !== roomId) return null;
+  return (await canQuickLogin(roomId, session.username)) ? session.username : null;
 }
 
-async function attachDeviceSession(uid, username) {
-  const memberSnap = await getDoc(doc(db, "members", username));
+async function attachDeviceSession(uid, roomId, username) {
+  const memberSnap = await getDoc(doc(db, "rooms", roomId, "members", username));
   if (!memberSnap.exists()) {
     throw new Error("এই ইউজারনেম নেই — রেজিস্টার করুন।");
   }
+
   const userMeta = memberSnap.data();
   const userRef = doc(db, "users", uid);
 
   await setDoc(
     userRef,
     {
+      roomId,
       username,
       displayName: userMeta.name,
       isOnline: true,
@@ -76,67 +60,28 @@ async function attachDeviceSession(uid, username) {
     { merge: true }
   );
 
-  await setDoc(
-    doc(db, "usernames", username),
-    {
-      username,
-      displayName: userMeta.name,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
-
   const userSnap = await getDoc(userRef);
-  currentUserDoc = { uid, ...userSnap.data() };
+  currentUserDoc = { uid, roomId, ...userSnap.data() };
   return currentUserDoc;
 }
 
-export async function login(secret, rawUsername, options = {}) {
+export async function login(roomId, rawUsername, options = {}) {
   const username = normalizeUserId(rawUsername);
   const idError = validateUserId(username);
   if (idError) throw new Error(idError);
 
+  if (!roomId) throw new Error("রুম লিংক সঠিক নয়");
+
   const quick =
     options.quick === true ||
-    (options.quick !== false && (await canQuickLogin(username)));
-
-  if (!quick && !secret) throw new Error("সিক্রেট দিন");
+    (options.quick !== false && (await canQuickLogin(roomId, username)));
 
   const cred = await signInAnonymously(auth);
   try {
-    if (!quick) {
-      await validateSecret(secret);
-    }
-    const user = await attachDeviceSession(cred.user.uid, username);
-    const now = Date.now();
-    const existing = await getDeviceSession();
+    const user = await attachDeviceSession(cred.user.uid, roomId, username);
     await saveDeviceSession({
+      roomId,
       username,
-      secretVerifiedAt: quick ? (existing?.secretVerifiedAt || now) : now,
-      lastActiveAt: now,
-    });
-    return user;
-  } catch (err) {
-    await signOut(auth);
-    throw err;
-  }
-}
-
-export async function register(secret, rawId, rawName) {
-  const username = normalizeUserId(rawId);
-  const idError = validateUserId(username);
-  if (idError) throw new Error(idError);
-
-  if (!secret) throw new Error("সিক্রেট দিন");
-
-  const cred = await signInAnonymously(auth);
-  try {
-    await validateSecret(secret);
-    await createTeamUser(rawId, rawName);
-    const user = await attachDeviceSession(cred.user.uid, username);
-    await saveDeviceSession({
-      username,
-      secretVerifiedAt: Date.now(),
       lastActiveAt: Date.now(),
     });
     return user;
@@ -144,6 +89,35 @@ export async function register(secret, rawId, rawName) {
     await signOut(auth);
     throw err;
   }
+}
+
+export async function register(roomId, rawId, rawName) {
+  const username = normalizeUserId(rawId);
+  const idError = validateUserId(username);
+  if (idError) throw new Error(idError);
+
+  if (!roomId) throw new Error("রুম লিংক সঠিক নয়");
+
+  const cred = await signInAnonymously(auth);
+  try {
+    await createMember(roomId, rawId, rawName);
+    const user = await attachDeviceSession(cred.user.uid, roomId, username);
+    await saveDeviceSession({
+      roomId,
+      username,
+      lastActiveAt: Date.now(),
+    });
+    return user;
+  } catch (err) {
+    await signOut(auth);
+    throw err;
+  }
+}
+
+export async function ensureAnonymousAuth() {
+  if (auth.currentUser) return auth.currentUser;
+  const cred = await signInAnonymously(auth);
+  return cred.user;
 }
 
 export async function logout() {

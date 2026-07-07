@@ -39,7 +39,7 @@ export async function flushOutbox() {
 
       await updateOutboxMessage(item.id, { status: "pending" });
       try {
-        await sendMessageToServer(item.convId, item.text, item.id);
+        await sendMessageToServer(item.roomId, item.text, item.id);
         await removeFromOutbox(item.id);
       } catch {
         const retries = (item.retries || 0) + 1;

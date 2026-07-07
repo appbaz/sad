@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="description" content="শুধু দুজনের জন্য — প্রাইভেট এক-টু-এক চ্যাট। লিংক খুলে সিক্রেট দিয়ে শুরু করুন।">
+  <meta name="description" content="লিংক শেয়ার করে দুজনের প্রাইভেট চ্যাট রুম তৈরি করুন — শুধু ইউজারনেম দিয়ে চ্যাট করুন।">
   <meta name="theme-color" content="#128C7E">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -11,23 +11,17 @@
 
   <title>Private Chat</title>
 
-  <!-- Open Graph / WhatsApp / Facebook -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://tunirma11.github.io/chatapp/">
   <meta property="og:site_name" content="Private Chat">
   <meta property="og:title" content="Private Chat">
-  <meta property="og:description" content="শুধু দুজনের জন্য — প্রাইভেট এক-টু-এক চ্যাট। লিংক খুলে সিক্রেট দিয়ে শুরু করুন।">
+  <meta property="og:description" content="লিংক শেয়ার করে দুজনের প্রাইভেট চ্যাট রুম তৈরি করুন।">
   <meta property="og:image" content="https://tunirma11.github.io/chatapp/icons/og-image.jpg">
-  <meta property="og:image:width" content="1200">
-  <meta property="og:image:height" content="630">
-  <meta property="og:image:type" content="image/jpeg">
-  <meta property="og:image:alt" content="Private Chat — প্রাইভেট মেসেঞ্জার">
   <meta property="og:locale" content="bn_BD">
 
-  <!-- Twitter / X -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Private Chat">
-  <meta name="twitter:description" content="শুধু দুজনের জন্য — প্রাইভেট এক-টু-এক চ্যাট।">
+  <meta name="twitter:description" content="লিংক শেয়ার করে দুজনের প্রাইভেট চ্যাট রুম তৈরি করুন।">
   <meta name="twitter:image" content="https://tunirma11.github.io/chatapp/icons/og-image.jpg">
 
   <link rel="manifest" href="manifest.json">
@@ -41,15 +35,58 @@
     <span id="connectionText">অনলাইন</span>
   </div>
 
-  <!-- Login View -->
-  <div id="loginView" class="view login-view">
+  <!-- Home View -->
+  <div id="homeView" class="view login-view">
     <div class="login-card card shadow-sm">
       <div class="card-body p-4">
         <div class="text-center mb-4">
           <div class="app-logo mx-auto mb-3">💬</div>
           <h1 class="h4 mb-1">Private Chat</h1>
-          <p class="text-muted small mb-0">শুধু দুজনের জন্য — এক-টু-এক প্রাইভেট চ্যাট</p>
+          <p class="text-muted small mb-0">দুজনের জন্য প্রাইভেট চ্যাট রুম — লিংক শেয়ার করুন</p>
         </div>
+
+        <button type="button" class="btn btn-primary w-100 btn-lg mb-4" id="createRoomBtn">
+          <span>নতুন চ্যাট রুম তৈরি করুন</span>
+          <span class="spinner-border spinner-border-sm d-none ms-2" id="createRoomSpinner" role="status"></span>
+        </button>
+
+        <div class="home-divider"><span>অথবা</span></div>
+
+        <div class="form-floating mb-3">
+          <input type="text" class="form-control" id="pasteRoomInput" placeholder="রুম লিংক" autocomplete="off" spellcheck="false">
+          <label for="pasteRoomInput">রুম লিংক বা কোড পেস্ট করুন</label>
+        </div>
+        <button type="button" class="btn btn-outline-primary w-100" id="joinRoomBtn">রুমে যোগ দিন</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Join Room View -->
+  <div id="loginView" class="view login-view d-none">
+    <div class="login-card card shadow-sm">
+      <div class="card-body p-4">
+        <div class="text-center mb-3">
+          <div class="app-logo mx-auto mb-3">💬</div>
+          <h1 class="h4 mb-1">চ্যাট রুম</h1>
+          <p class="text-muted small mb-0">
+            কোড: <code id="roomCode" class="room-code">—</code>
+            <span class="mx-1">·</span>
+            <span id="roomStatus">০/২ জন</span>
+          </p>
+        </div>
+
+        <div id="invalidRoomAlert" class="alert alert-danger small py-2 d-none" role="alert"></div>
+
+        <div class="share-link-panel mb-3">
+          <label class="form-label small text-muted mb-1">শেয়ার লিংক</label>
+          <div class="input-group">
+            <input type="text" class="form-control form-control-sm" id="shareLinkInput" readonly aria-label="শেয়ার লিংক">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="copyLinkBtn">কপি</button>
+            <button type="button" class="btn btn-outline-primary btn-sm" id="shareLinkBtn">শেয়ার</button>
+          </div>
+          <p class="form-text mb-0">সঙ্গীকে এই লিংক পাঠান — সে শুধু ইউজারনেম দিয়ে যোগ দেবে</p>
+        </div>
+
         <div class="auth-tabs mb-3" role="tablist">
           <button type="button" class="auth-tab active" id="loginTabBtn" data-tab="login">প্রবেশ</button>
           <button type="button" class="auth-tab" id="registerTabBtn" data-tab="register">রেজিস্টার</button>
@@ -59,10 +96,6 @@
           <div id="quickLoginHint" class="quick-login-hint d-none mb-3">
             <span class="quick-login-dot"></span>
             <span>এই ডিভাইসে সক্রিয় — শুধু ইউজারনেম দিয়ে প্রবেশ করুন</span>
-          </div>
-          <div class="form-floating mb-3" id="secretFieldWrap">
-            <input type="password" class="form-control" id="secretInput" placeholder="সিক্রেট" autocomplete="current-password" required>
-            <label for="secretInput">শেয়ার্ড সিক্রেট</label>
           </div>
           <div class="form-floating mb-4">
             <input type="text" class="form-control" id="loginUsername" placeholder="ইউজারনেম" autocomplete="username" autocapitalize="none" spellcheck="false" required>
@@ -80,10 +113,6 @@
 
         <form id="registerForm" class="auth-panel d-none" novalidate>
           <div class="form-floating mb-3">
-            <input type="password" class="form-control" id="registerSecret" placeholder="সিক্রেট" autocomplete="new-password" required>
-            <label for="registerSecret">শেয়ার্ড সিক্রেট</label>
-          </div>
-          <div class="form-floating mb-3">
             <input type="text" class="form-control" id="registerUserId" placeholder="ইউজারনেম" autocomplete="off" autocapitalize="none" spellcheck="false" required>
             <label for="registerUserId">ইউজারনেম</label>
             <div class="form-text">ছোট হাতের অক্ষর, যেমন: sara</div>
@@ -92,7 +121,7 @@
             <input type="text" class="form-control" id="registerName" placeholder="নাম" autocomplete="name" required>
             <label for="registerName">আপনার নাম</label>
           </div>
-          <p class="text-muted small mb-3">শুধু <strong>২ জন</strong> রেজিস্টার করতে পারবে — আপনি ও আপনার সঙ্গী।</p>
+          <p class="text-muted small mb-3">এই রুমে শুধু <strong>২ জন</strong> যোগ দিতে পারবে।</p>
           <button type="submit" class="btn btn-primary w-100 btn-lg" id="registerBtn">
             <span class="register-btn-text">রেজিস্টার করুন</span>
             <span class="spinner-border spinner-border-sm d-none" id="registerSpinner" role="status"></span>
@@ -105,7 +134,7 @@
     </div>
   </div>
 
-  <!-- Chat View — single 1-on-1 -->
+  <!-- Chat View -->
   <div id="chatView" class="view chat-view d-none">
     <div class="chat-single" id="chatLayout">
       <header class="chat-topbar">
@@ -127,7 +156,8 @@
         <div class="text-center p-5">
           <div class="waiting-icon mb-3">⏳</div>
           <h2 class="h5">সঙ্গীর অপেক্ষায়...</h2>
-          <p class="text-muted small mb-0">আপনার সঙ্গী রেজিস্টার করলে চ্যাট শুরু হবে।<br>শেয়ার্ড সিক্রেট ও অ্যাপ লিংক তাকে দিন।</p>
+          <p class="text-muted small mb-2">সঙ্গীকে রুম লিংক পাঠান — সে রেজিস্টার করলে চ্যাট শুরু হবে।</p>
+          <p class="text-muted small mb-0 text-break" id="waitingShareHint"></p>
         </div>
       </div>
 
