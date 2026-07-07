@@ -119,22 +119,27 @@
         <div class="text-center mb-4">
           <div class="app-logo mx-auto mb-3">💬</div>
           <h1 class="h4 mb-1">চ্যাট রুম</h1>
-          <p class="text-muted small mb-0">রুম পাসওয়ার্ড দিয়ে প্রবেশ করুন</p>
+          <p class="text-muted small mb-0">ইউজারনেম ও রুম পাসওয়ার্ড দিয়ে প্রবেশ করুন</p>
         </div>
 
         <div id="roomGateError" class="alert alert-danger small py-2 d-none" role="alert"></div>
         <div id="quickRoomHint" class="quick-login-hint d-none mb-3">
           <span class="quick-login-dot"></span>
-          <span>এই ডিভাইসে সক্রিয় — পাসওয়ার্ড ছাড়াই চালিয়ে যান</span>
+          <span>এই ডিভাইসে সক্রিয় — শুধু ইউজারনেম দিয়ে চালিয়ে যান</span>
         </div>
 
         <form id="roomGateForm" novalidate>
-          <div class="form-floating mb-4">
+          <div class="form-floating mb-3">
+            <input type="text" class="form-control" id="roomGateUsername" placeholder="ইউজারনেম" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+            <label for="roomGateUsername">ইউজারনেম</label>
+            <div class="form-text" id="roomMemberHint">অ্যাডমিন যে ইউজারনেম দিয়েছেন সেটাই লিখুন</div>
+          </div>
+          <div class="form-floating mb-4" id="roomPasswordWrap">
             <input type="password" class="form-control" id="roomPasswordInput" placeholder="রুম পাসওয়ার্ড" autocomplete="current-password" required>
             <label for="roomPasswordInput">রুম পাসওয়ার্ড</label>
           </div>
           <button type="submit" class="btn btn-primary w-100 btn-lg" id="roomGateBtn">
-            <span>চ্যাট শুরু করুন</span>
+            <span class="room-gate-btn-text">চ্যাট শুরু করুন</span>
             <span class="spinner-border spinner-border-sm d-none ms-2" id="roomGateSpinner" role="status"></span>
           </button>
         </form>

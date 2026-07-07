@@ -23,7 +23,8 @@ import { loginAdmin, logoutAdmin, isAdminLoggedIn, touchAdminSession } from "./a
 import {
   verifyRoomPassword,
   isRoomPasswordVerified,
-  claimMemberSlot,
+  resolveRoomMember,
+  getRoomMemberUsernames,
 } from "./room-gate.js";
 import {
   createRoom,
@@ -34,7 +35,7 @@ import {
   isRoomFull,
 } from "./rooms.js";
 import { onRouteChange, navigateToAdmin, navigateToHome } from "./router.js";
-import { isInstallDismissed, dismissInstallPrompt, getPendingMessages, touchDeviceSession } from "./store.js";
+import { isInstallDismissed, dismissInstallPrompt, getPendingMessages, touchDeviceSession, getDeviceSession } from "./store.js";
 import {
   enableOfflinePersistence,
   sendMessage,
@@ -69,6 +70,8 @@ import {
   showQuickRoomHint,
   getSelectedAdminRoomId,
   setSelectedAdminRoomId,
+  setRoomGateQuickMode,
+  setRoomMemberHint,
 } from "./ui-admin.js";
 import {
   bindSoundUnlock,
@@ -86,6 +89,7 @@ import {
   playSync,
   playSentConfirm,
 } from "./sounds.js";
+import { normalizeUserId } from "./constants.js";
 import { formatFirebaseError } from "./errors.js";
 
 let currentRoomId = null;
@@ -221,9 +225,23 @@ async function bootstrapRoomGate(roomId) {
   }
 
   showView("gate");
-  const quick = await canQuickReenter(roomId);
+  const deviceSession = await getDeviceSession();
   const verified = await isRoomPasswordVerified(roomId);
-  showQuickRoomHint(quick && verified);
+  const quick = (await canQuickReenter(roomId)) && verified;
+
+  try {
+    const usernames = await getRoomMemberUsernames(roomId);
+    if (usernames.length) {
+      setRoomMemberHint(`এই রুমের সদস্য: ${usernames.join(", ")}`);
+    } else {
+      setRoomMemberHint("অ্যাডমিন এখনো সদস্য যোগ করেননি");
+    }
+  } catch {
+    setRoomMemberHint("");
+  }
+
+  setRoomGateQuickMode(quick, quick ? deviceSession?.username : "");
+  showQuickRoomHint(quick);
 
   const user = getCurrentUser();
   if (user?.roomId === roomId) {
@@ -231,8 +249,8 @@ async function bootstrapRoomGate(roomId) {
     return;
   }
 
-  if (quick && verified) {
-    await startChatFromGate(null, true);
+  if (quick && deviceSession?.username) {
+    await startChatFromGate(null, deviceSession.username, true);
   }
 }
 
@@ -380,11 +398,20 @@ async function handleAdminCopyLink() {
 
 async function handleRoomGate(e) {
   e.preventDefault();
-  await startChatFromGate(document.getElementById("roomPasswordInput")?.value || "", false);
+  const password = document.getElementById("roomPasswordInput")?.value || "";
+  const rawUsername = document.getElementById("roomGateUsername")?.value || "";
+  await startChatFromGate(password, rawUsername, false);
 }
 
-async function startChatFromGate(password, skipPasswordCheck) {
+async function startChatFromGate(password, rawUsername, skipPasswordCheck) {
   if (!currentRoomId) return;
+
+  const username = normalizeUserId(rawUsername);
+  if (!username) {
+    showRoomGateError("ইউজারনেম দিন");
+    playError();
+    return;
+  }
 
   setRoomGateLoading(true);
   isEnteringChat = true;
@@ -398,12 +425,13 @@ async function startChatFromGate(password, skipPasswordCheck) {
       throw new Error("আবার পাসওয়ার্ড দিন");
     }
 
-    const username = await claimMemberSlot(currentRoomId);
-    const user = await enterChatAsMember(currentRoomId, username);
+    const resolvedUsername = await resolveRoomMember(currentRoomId, username);
+    const user = await enterChatAsMember(currentRoomId, resolvedUsername);
     enterChat(user);
     playLogin();
     showToast("চ্যাট শুরু হয়েছে", "success");
   } catch (err) {
+    console.error("Room gate failed:", err);
     playError();
     showRoomGateError(formatFirebaseError(err));
   } finally {

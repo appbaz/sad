@@ -110,3 +110,36 @@ export function hideRoomGateError() {
 export function showQuickRoomHint(show) {
   document.getElementById("quickRoomHint")?.classList.toggle("d-none", !show);
 }
+
+export function setRoomGateQuickMode(enabled, username = "") {
+  const passwordWrap = document.getElementById("roomPasswordWrap");
+  const hint = document.getElementById("quickRoomHint");
+  const passwordInput = document.getElementById("roomPasswordInput");
+  const usernameInput = document.getElementById("roomGateUsername");
+  const btnText = document.querySelector(".room-gate-btn-text");
+
+  passwordWrap?.classList.toggle("d-none", enabled);
+  hint?.classList.toggle("d-none", !enabled);
+
+  if (passwordInput) {
+    if (enabled) {
+      passwordInput.removeAttribute("required");
+      passwordInput.value = "";
+    } else {
+      passwordInput.setAttribute("required", "");
+    }
+  }
+
+  if (enabled && username && usernameInput) {
+    usernameInput.value = username;
+  }
+
+  if (btnText) {
+    btnText.textContent = enabled ? "চালিয়ে যান" : "চ্যাট শুরু করুন";
+  }
+}
+
+export function setRoomMemberHint(text) {
+  const el = document.getElementById("roomMemberHint");
+  if (el) el.textContent = text || "";
+}

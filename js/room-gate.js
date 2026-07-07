@@ -1,7 +1,7 @@
 import { collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { db } from "./firebase.js";
 import { sha256Hex } from "./crypto-utils.js";
-import { QUICK_LOGIN_IDLE_MS, ONLINE_THRESHOLD_MS } from "./constants.js";
+import { ONLINE_THRESHOLD_MS, normalizeUserId, validateUserId } from "./constants.js";
 import { getRoom } from "./rooms.js";
 import { fetchMembersOnce, getMembers } from "./users.js";
 import { getRoomSession, saveRoomSession, getDeviceSession } from "./store.js";
@@ -44,44 +44,33 @@ async function getOnlineUsernames(roomId) {
   return online;
 }
 
-export async function claimMemberSlot(roomId) {
+export async function resolveRoomMember(roomId, rawUsername) {
   await ensureAnonymousAuth();
 
-  const room = await getRoom(roomId);
-  if (!room) throw new Error("রুম পাওয়া যায়নি");
-  if (room.status === "disabled") throw new Error("এই রুম নিষ্ক্রিয় করা হয়েছে");
+  const username = normalizeUserId(rawUsername);
+  const idError = validateUserId(username);
+  if (idError) throw new Error(idError);
 
   await fetchMembersOnce(roomId);
-  const members = getMembers();
-  if (members.length === 0) {
-    throw new Error("অ্যাডমিন এখনো এই রুমে সদস্য যোগ করেননি");
+  const member = getMembers().find((m) => m.id === username);
+  if (!member) {
+    throw new Error("এই ইউজারনেম এই রুমে নেই — অ্যাডমিন যোগ করেছেন কিনা দেখুন");
   }
 
   const deviceSession = await getDeviceSession();
-  if (
-    deviceSession?.roomId === roomId &&
-    deviceSession?.username &&
-    members.some((m) => m.id === deviceSession.username) &&
-    Date.now() - (deviceSession.lastActiveAt || 0) < QUICK_LOGIN_IDLE_MS
-  ) {
-    return deviceSession.username;
+  if (deviceSession?.roomId === roomId && deviceSession?.username === username) {
+    return username;
   }
 
   const onlineUsernames = await getOnlineUsernames(roomId);
-
-  if (
-    deviceSession?.roomId === roomId &&
-    deviceSession?.username &&
-    members.some((m) => m.id === deviceSession.username) &&
-    !onlineUsernames.has(deviceSession.username)
-  ) {
-    return deviceSession.username;
+  if (onlineUsernames.has(username)) {
+    throw new Error("এই ইউজারনেম ইতিমধ্যে অনলাইন — আগে লগআউট করুন বা অপেক্ষা করুন");
   }
 
-  const available = members.find((m) => !onlineUsernames.has(m.id));
-  if (!available) {
-    throw new Error("রুমে ইতিমধ্যে ২ জন সক্রিয় — পরে আবার চেষ্টা করুন");
-  }
+  return username;
+}
 
-  return available.id;
+export async function getRoomMemberUsernames(roomId) {
+  await fetchMembersOnce(roomId);
+  return getMembers().map((m) => m.id);
 }

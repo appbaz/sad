@@ -1,4 +1,4 @@
-const CACHE_NAME = "chat-app-v15";
+const CACHE_NAME = "chat-app-v16";
 
 const ASSETS = [
   "./",
