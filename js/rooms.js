@@ -72,8 +72,3 @@ export async function setRoomStatus(roomId, status) {
 export function isRoomFull(room) {
   return (room?.memberCount || 0) >= MAX_MEMBERS_PER_ROOM;
 }
-
-export function buildShareLink(roomId) {
-  const base = `${window.location.origin}${window.location.pathname}`;
-  return `${base}#/room/${roomId}`;
-}

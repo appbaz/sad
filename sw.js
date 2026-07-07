@@ -1,8 +1,9 @@
-const CACHE_NAME = "chat-app-v20";
+const CACHE_NAME = "chat-app-v21";
 
 const ASSETS = [
   "./",
   "./index.html",
+  "./404.html",
   "./manifest.json",
   "./css/app.css",
   "./js/constants.js",
@@ -58,15 +59,24 @@ self.addEventListener("fetch", (event) => {
   if (FIREBASE_HOSTS.some((host) => url.hostname.includes(host))) return;
   if (url.origin !== self.location.origin) return;
 
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.status === 404) {
+            return caches.match("./index.html");
+          }
+          return response;
+        })
+        .catch(() => caches.match("./index.html"))
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
-      return fetch(event.request).catch(() => {
-        if (event.request.mode === "navigate") {
-          return caches.match("./index.html");
-        }
-        return cached;
-      });
+      return fetch(event.request).catch(() => cached);
     })
   );
 });

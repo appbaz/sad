@@ -1,5 +1,5 @@
 import { escapeHtml } from "./ui.js";
-import { buildShareLink } from "./rooms.js";
+import { buildShareLink } from "./router.js";
 
 let selectedRoomId = null;
 
