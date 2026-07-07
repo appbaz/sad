@@ -10,25 +10,23 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { db } from "./firebase.js";
-import { MAX_MEMBERS_PER_ROOM } from "./constants.js";
+import { MAX_MEMBERS_PER_ROOM, normalizeRoomCode, validateRoomCode } from "./constants.js";
 import { sha256Hex } from "./crypto-utils.js";
 
-export function generateRoomId() {
-  const bytes = new Uint8Array(12);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(36).padStart(2, "0"))
-    .join("")
-    .slice(0, 16);
-}
+export async function createRoom(label, password, rawRoomCode) {
+  const roomId = normalizeRoomCode(rawRoomCode);
+  const codeError = validateRoomCode(roomId);
+  if (codeError) throw new Error(codeError);
 
-export async function createRoom(label, password) {
-  const roomId = generateRoomId();
   const existing = await getDoc(doc(db, "rooms", roomId));
-  if (existing.exists()) return createRoom(label, password);
+  if (existing.exists()) {
+    throw new Error("এই রুম কোড ইতিমধ্যে আছে — অন্য কোড ব্যবহার করুন");
+  }
 
   const passwordHash = await sha256Hex(password);
   await setDoc(doc(db, "rooms", roomId), {
-    label: String(label || "").trim() || "চ্যাট রুম",
+    label: String(label || "").trim() || roomId,
+    code: roomId,
     passwordHash,
     memberCount: 0,
     maxMembers: MAX_MEMBERS_PER_ROOM,

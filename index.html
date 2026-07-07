@@ -56,7 +56,11 @@
           <h2 class="h6">নতুন রুম তৈরি</h2>
           <form id="adminCreateRoomForm" class="row g-2">
             <div class="col-12">
-              <input type="text" class="form-control" id="newRoomLabel" placeholder="রুমের নাম (যেমন: Ali-Sara)" required>
+              <input type="text" class="form-control" id="newRoomCode" placeholder="রুম কোড (লিংকে থাকবে)" required autocapitalize="none" spellcheck="false">
+              <div class="form-text">সহজ মনে রাখার কোড: ali-sara, chat01, বা 4829</div>
+            </div>
+            <div class="col-12">
+              <input type="text" class="form-control" id="newRoomLabel" placeholder="রুমের নাম (যেমন: Ali ও Sara)" required>
             </div>
             <div class="col-12">
               <input type="password" class="form-control" id="newRoomPassword" placeholder="রুম পাসওয়ার্ড (চ্যাট ইউজার দেবে)" required>

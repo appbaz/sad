@@ -288,17 +288,23 @@ async function handleAdminCreateRoom(e) {
   e.preventDefault();
   const label = document.getElementById("newRoomLabel")?.value || "";
   const password = document.getElementById("newRoomPassword")?.value || "";
+  const roomCode = document.getElementById("newRoomCode")?.value || "";
   if (!password) {
     showToast("রুম পাসওয়ার্ড দিন");
+    return;
+  }
+  if (!roomCode.trim()) {
+    showToast("রুম কোড দিন");
     return;
   }
 
   setAdminCreateLoading(true);
   try {
     await ensureAnonymousAuth();
-    const roomId = await createRoom(label, password);
+    const roomId = await createRoom(label, password, roomCode);
     document.getElementById("newRoomLabel").value = "";
     document.getElementById("newRoomPassword").value = "";
+    document.getElementById("newRoomCode").value = "";
     await refreshAdminRooms();
     setSelectedAdminRoomId(roomId);
     await loadAdminRoomDetail(roomId);

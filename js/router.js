@@ -7,10 +7,13 @@ function isAdminRoute(hash) {
 }
 
 function extractRoomId(hash) {
-  const patterns = [/^#\/room\/([a-z0-9]+)/i, /^#room\/([a-z0-9]+)/i];
+  const patterns = [/^#\/room\/([a-z0-9_-]+)/i, /^#room\/([a-z0-9_-]+)/i];
   for (const pattern of patterns) {
     const match = hash.match(pattern);
-    if (match && ROOM_ID_PATTERN.test(match[1])) return match[1];
+    if (match) {
+      const id = match[1].toLowerCase();
+      if (ROOM_ID_PATTERN.test(id)) return id;
+    }
   }
   return null;
 }
@@ -50,13 +53,17 @@ export function parseRoomIdFromInput(input) {
   const trimmed = String(input || "").trim();
   if (!trimmed) return null;
 
-  const patterns = [/#\/room\/([a-z0-9]+)/i, /#room\/([a-z0-9]+)/i];
+  const patterns = [/#\/room\/([a-z0-9_-]+)/i, /#room\/([a-z0-9_-]+)/i];
   for (const pattern of patterns) {
     const match = trimmed.match(pattern);
-    if (match && ROOM_ID_PATTERN.test(match[1])) return match[1];
+    if (match) {
+      const id = match[1].toLowerCase();
+      if (ROOM_ID_PATTERN.test(id)) return id;
+    }
   }
 
-  if (ROOM_ID_PATTERN.test(trimmed)) return trimmed;
+  const code = trimmed.toLowerCase();
+  if (ROOM_ID_PATTERN.test(code)) return code;
   return null;
 }
 
