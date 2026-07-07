@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="description" content="Private 1-on-1 chat for your team">
+  <meta name="description" content="Private one-to-one chat between two people">
   <meta name="theme-color" content="#0d6efd">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <title>Chat App</title>
+  <title>Private Chat</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -25,8 +25,8 @@
       <div class="card-body p-4">
         <div class="text-center mb-4">
           <div class="app-logo mx-auto mb-3">💬</div>
-          <h1 class="h4 mb-1">Chat App</h1>
-          <p class="text-muted small mb-0">আপনার দলের প্রাইভেট চ্যাট</p>
+          <h1 class="h4 mb-1">Private Chat</h1>
+          <p class="text-muted small mb-0">শুধু দুজনের জন্য — এক-টু-এক প্রাইভেট চ্যাট</p>
         </div>
         <div class="auth-tabs mb-3" role="tablist">
           <button type="button" class="auth-tab active" id="loginTabBtn" data-tab="login">প্রবেশ</button>
@@ -59,13 +59,14 @@
           </div>
           <div class="form-floating mb-3">
             <input type="text" class="form-control" id="registerUserId" placeholder="ইউজারনেম" autocomplete="off" autocapitalize="none" spellcheck="false" required>
-            <label for="registerUserId">ইউজারনেম (ID)</label>
-            <div class="form-text">ছোট হাতের অক্ষর, যেমন: ali</div>
+            <label for="registerUserId">ইউজারনেম</label>
+            <div class="form-text">ছোট হাতের অক্ষর, যেমন: sara</div>
           </div>
-          <div class="form-floating mb-4">
+          <div class="form-floating mb-3">
             <input type="text" class="form-control" id="registerName" placeholder="নাম" autocomplete="name" required>
-            <label for="registerName">পূর্ণ নাম</label>
+            <label for="registerName">আপনার নাম</label>
           </div>
+          <p class="text-muted small mb-3">শুধু <strong>২ জন</strong> রেজিস্টার করতে পারবে — আপনি ও আপনার সঙ্গী।</p>
           <button type="submit" class="btn btn-primary w-100 btn-lg" id="registerBtn">
             <span class="register-btn-text">রেজিস্টার করুন</span>
             <span class="spinner-border spinner-border-sm d-none" id="registerSpinner" role="status"></span>
@@ -78,77 +79,48 @@
     </div>
   </div>
 
-  <!-- Chat View -->
+  <!-- Chat View — single 1-on-1 -->
   <div id="chatView" class="view chat-view d-none">
-    <div class="chat-layout" id="chatLayout">
-      <aside class="sidebar" id="sidebar">
-        <header class="sidebar-header">
-          <div class="d-flex align-items-center gap-2">
-            <div class="avatar avatar-self" id="selfAvatar">?</div>
-            <div class="flex-grow-1 min-w-0">
-              <div class="fw-semibold text-truncate" id="selfName">—</div>
-              <div class="text-muted small">আপনি</div>
-            </div>
-            <button class="btn btn-link btn-sm text-muted p-1" id="manageUsersBtn" title="ইউজার ম্যানেজ" aria-label="ইউজার ম্যানেজ">
-              <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/></svg>
-            </button>
-            <button class="btn btn-link btn-sm text-muted p-1" id="soundToggleBtn" title="সাউন্ড বন্ধ করুন" aria-label="সাউন্ড টগল">
-              <svg id="soundOnIcon" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M11.536 14.01A8.473 8.473 0 0 0 14.026 8a8.473 8.473 0 0 0-2.49-6.01l-.708.707A7.476 7.476 0 0 1 13.025 8c0 2.07-.84 3.946-2.197 5.303l.708.707z"/><path d="M10.121 12.596A6.48 6.48 0 0 0 12.025 8a6.48 6.48 0 0 0-1.904-4.596l-.707.707A5.483 5.483 0 0 1 11.025 8a5.483 5.483 0 0 1-1.61 3.89l.706.706z"/><path d="M8.707 11.182A4.486 4.486 0 0 0 10.025 8a4.486 4.486 0 0 0-1.318-3.182L8 5.525A3.489 3.489 0 0 1 9.025 8a3.49 3.49 0 0 1-1.025 2.475l.707.707zM6.717 3.55A.5.5 0 0 1 7 4v8a.5.5 0 0 1-.812.39L3.825 10.5H1.5A.5.5 0 0 1 1 10V6a.5.5 0 0 1 .5-.5h2.325l2.363-1.89a.5.5 0 0 1 .529-.06z"/></svg>
-              <svg id="soundOffIcon" class="d-none" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M6.717 3.55A.5.5 0 0 1 7 4v8a.5.5 0 0 1-.812.39L3.825 10.5H1.5A.5.5 0 0 1 1 10V6a.5.5 0 0 1 .5-.5h2.325l2.363-1.89a.5.5 0 0 1 .529-.06zm10.137 7.763-1.414-1.414L2.707 1.293 1.293 2.707l3.525 3.525A.5.5 0 0 0 5 6.5V10a.5.5 0 0 0 .5.5h2.325l2.363 1.89a.5.5 0 0 0 .812-.39V9.707l2.025 2.025a4.486 4.486 0 0 0 .707-.707 3.49 3.49 0 0 0 1.025-2.475 3.489 3.489 0 0 0-1.025-2.475l.707-.707a4.486 4.486 0 0 1 1.318 3.182 4.486 4.486 0 0 1-1.318 3.182z"/></svg>
-            </button>
-            <button class="btn btn-link btn-sm text-muted p-1" id="logoutBtn" title="লগআউট" aria-label="লগআউট">
-              <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/><path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/></svg>
-            </button>
-          </div>
-        </header>
-        <div class="user-list" id="userList">
-          <div class="skeleton-list" id="userListSkeleton">
-            <div class="skeleton-item"></div>
-            <div class="skeleton-item"></div>
-            <div class="skeleton-item"></div>
+    <div class="chat-single" id="chatLayout">
+      <header class="chat-topbar">
+        <div class="avatar" id="partnerAvatar">?</div>
+        <div class="flex-grow-1 min-w-0">
+          <div class="fw-semibold text-truncate" id="partnerName">—</div>
+          <div class="text-muted small" id="partnerStatus">—</div>
+        </div>
+        <button class="btn btn-link btn-sm text-muted p-1" id="soundToggleBtn" title="সাউন্ড বন্ধ করুন" aria-label="সাউন্ড টগল">
+          <svg id="soundOnIcon" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M6.717 3.55A.5.5 0 0 1 7 4v8a.5.5 0 0 1-.812.39L3.825 10.5H1.5A.5.5 0 0 1 1 10V6a.5.5 0 0 1 .5-.5h2.325l2.363-1.89a.5.5 0 0 1 .529-.06z"/></svg>
+          <svg id="soundOffIcon" class="d-none" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M6.717 3.55A.5.5 0 0 1 7 4v8a.5.5 0 0 1-.812.39L3.825 10.5H1.5A.5.5 0 0 1 1 10V6a.5.5 0 0 1 .5-.5h2.325l2.363-1.89a.5.5 0 0 1 .529-.06zm10.137 7.763-1.414-1.414L2.707 1.293 1.293 2.707l3.525 3.525A.5.5 0 0 0 5 6.5V10a.5.5 0 0 0 .5.5h2.325l2.363 1.89a.5.5 0 0 0 .812-.39V9.707l2.025 2.025a4.486 4.486 0 0 0 .707-.707 3.49 3.49 0 0 0 1.025-2.475 3.489 3.489 0 0 0-1.025-2.475l.707-.707a4.486 4.486 0 0 1 1.318 3.182 4.486 4.486 0 0 1-1.318 3.182z"/></svg>
+        </button>
+        <button class="btn btn-link btn-sm text-muted p-1" id="logoutBtn" title="লগআউট" aria-label="লগআউট">
+          <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/><path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/></svg>
+        </button>
+      </header>
+
+      <div class="waiting-partner d-none" id="waitingPartner">
+        <div class="text-center p-5">
+          <div class="waiting-icon mb-3">⏳</div>
+          <h2 class="h5">সঙ্গীর অপেক্ষায়...</h2>
+          <p class="text-muted small mb-0">আপনার সঙ্গী রেজিস্টার করলে চ্যাট শুরু হবে।<br>শেয়ার্ড সিক্রেট ও অ্যাপ লিংক তাকে দিন।</p>
+        </div>
+      </div>
+
+      <div class="chat-body d-none" id="chatBody">
+        <div class="messages" id="messages">
+          <div class="skeleton-messages" id="messagesSkeleton">
+            <div class="skeleton-bubble left"></div>
+            <div class="skeleton-bubble right"></div>
           </div>
         </div>
-      </aside>
-
-      <main class="chat-area" id="chatArea">
-        <div class="chat-empty" id="chatEmpty">
-          <div class="text-center text-muted p-5">
-            <div class="empty-icon mb-3">👋</div>
-            <h2 class="h5">কাউকে বেছে নিন</h2>
-            <p class="small mb-0">বাম দিক থেকে একজনকে সিলেক্ট করে চ্যাট শুরু করুন</p>
-          </div>
-        </div>
-
-        <div class="chat-active d-none" id="chatActive">
-          <header class="chat-header">
-            <button class="btn btn-link p-1 d-md-none back-btn" id="backBtn" aria-label="ফিরে যান">
-              <svg width="22" height="22" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/></svg>
+        <footer class="chat-input-area">
+          <div class="input-group">
+            <textarea class="form-control chat-input" id="messageInput" rows="1" placeholder="মেসেজ লিখুন..." maxlength="1000"></textarea>
+            <button class="btn btn-primary send-btn" id="sendBtn" aria-label="পাঠান" disabled>
+              <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M15.964.686a.5.5 0 0 0-.65-.65L.767 5.855H.766l-.452.18a.5.5 0 0 0-.082.887l.41.26.001.002 4.995 3.178 3.178 4.995.002.002.26.41a.5.5 0 0 0 .886-.083l6-10Zm-1.833 1.89L6.637 10.07l-.201-.16a.5.5 0 0 0-.707 0l-1.958 1.957a.5.5 0 0 0 0 .707l.707.707a.5.5 0 0 0 .707 0l1.958-1.958a.5.5 0 0 0 0-.707l-.16-.201 7.636-7.495-1.1-.921z"/></svg>
             </button>
-            <div class="avatar" id="chatAvatar">?</div>
-            <div class="flex-grow-1 min-w-0">
-              <div class="fw-semibold text-truncate" id="chatName">—</div>
-              <div class="text-muted small" id="chatStatus">—</div>
-            </div>
-          </header>
-
-          <div class="messages" id="messages">
-            <div class="skeleton-messages" id="messagesSkeleton">
-              <div class="skeleton-bubble left"></div>
-              <div class="skeleton-bubble right"></div>
-              <div class="skeleton-bubble left"></div>
-            </div>
           </div>
-
-          <footer class="chat-input-area">
-            <div class="input-group">
-              <textarea class="form-control chat-input" id="messageInput" rows="1" placeholder="মেসেজ লিখুন..." maxlength="1000"></textarea>
-              <button class="btn btn-primary send-btn" id="sendBtn" aria-label="পাঠান" disabled>
-                <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M15.964.686a.5.5 0 0 0-.65-.65L.767 5.855H.766l-.452.18a.5.5 0 0 0-.082.887l.41.26.001.002 4.995 3.178 3.178 4.995.002.002.26.41a.5.5 0 0 0 .886-.083l6-10Zm-1.833 1.89L6.637 10.07l-.201-.16a.5.5 0 0 0-.707 0l-1.958 1.957a.5.5 0 0 0 0 .707l.707.707a.5.5 0 0 0 .707 0l1.958-1.958a.5.5 0 0 0 0-.707l-.16-.201 7.636-7.495-1.1-.921z"/></svg>
-              </button>
-            </div>
-          </footer>
-        </div>
-      </main>
+        </footer>
+      </div>
     </div>
   </div>
 
@@ -159,37 +131,6 @@
   </div>
 
   <div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
-
-  <!-- Team Users Manage Modal -->
-  <div class="modal fade" id="teamManageModal" tabindex="-1" aria-labelledby="teamManageModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="teamManageModalLabel">ইউজার ম্যানেজ</h5>
-          <span class="badge text-bg-primary ms-2" id="teamUserCount">0 / 10</span>
-          <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal" aria-label="বন্ধ"></button>
-        </div>
-        <div class="modal-body">
-          <form id="teamUserForm" class="team-user-form mb-3">
-            <h6 class="small text-muted mb-2" id="teamFormTitle">নতুন ইউজার যোগ</h6>
-            <div class="row g-2">
-              <div class="col-5">
-                <input type="text" class="form-control form-control-sm" id="teamUserId" placeholder="id (যেমন: ali)" maxlength="20" autocomplete="off">
-              </div>
-              <div class="col-7">
-                <input type="text" class="form-control form-control-sm" id="teamUserName" placeholder="নাম (যেমন: Ali)" maxlength="40" required>
-              </div>
-            </div>
-            <div class="d-flex gap-2 mt-2">
-              <button type="submit" class="btn btn-primary btn-sm" id="teamFormSubmit">যোগ করুন</button>
-              <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="teamFormCancel">বাতিল</button>
-            </div>
-          </form>
-          <div id="teamManageList"></div>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script type="module" src="js/app.js"></script>
