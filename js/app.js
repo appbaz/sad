@@ -533,7 +533,7 @@ async function handleSend() {
     const optimistic = await sendMessage(currentRoomId, text);
     if (optimistic) {
       pendingLocalMessages.push(optimistic);
-      renderMessages(currentMessages, me.username, me.uid, pendingLocalMessages, handleRetry);
+      renderMessages(currentMessages, me.username, me.uid, pendingLocalMessages, handleRetry, getMemberById(partnerUsername));
     }
     if (navigator.onLine) flushOutbox();
   } catch (err) {
@@ -633,7 +633,7 @@ async function openPartnerChat(partner) {
       }
     });
 
-    renderMessages(currentMessages, me.username, me.uid, pendingLocalMessages, handleRetry);
+    renderMessages(currentMessages, me.username, me.uid, pendingLocalMessages, handleRetry, partner);
   });
 }
 
