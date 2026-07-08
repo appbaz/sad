@@ -1,4 +1,4 @@
-const CACHE_NAME = "chat-app-v21";
+const CACHE_NAME = "chat-app-v22";
 
 const ASSETS = [
   "./",
@@ -24,6 +24,10 @@ const ASSETS = [
   "./js/ui-admin.js",
   "./js/sounds.js",
   "./js/app.js",
+  "./icons/icon.svg",
+  "./icons/favicon.ico",
+  "./icons/favicon-16.png",
+  "./icons/favicon-32.png",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/og-image.jpg",
