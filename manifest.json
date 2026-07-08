@@ -1,7 +1,7 @@
 {
-  "name": "Private Chat",
-  "short_name": "Chat",
-  "description": "শেয়ারেবল লিংক দিয়ে দুজনের প্রাইভেট চ্যাট রুম",
+  "name": "Chat App",
+  "short_name": "Chat App",
+  "description": "শেয়ারেবল লিংক দিয়ে দুজনের চ্যাট রুম",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",
