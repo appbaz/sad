@@ -35,7 +35,7 @@ import {
   isRoomFull,
 } from "./rooms.js";
 import { onRouteChange, navigateToAdmin, navigateToHome } from "./router.js";
-import { isInstallDismissed, dismissInstallPrompt, getPendingMessages, touchDeviceSession, getDeviceSession, clearRoomSession } from "./store.js";
+import { getPendingMessages, touchDeviceSession, getDeviceSession, clearRoomSession } from "./store.js";
 import {
   enableOfflinePersistence,
   sendMessage,
@@ -663,40 +663,74 @@ function isInStandaloneMode() {
   return window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
 }
 
+function isInstallDismissedThisSession() {
+  return sessionStorage.getItem("install-dismissed") === "1";
+}
+
+function dismissInstallThisSession() {
+  sessionStorage.setItem("install-dismissed", "1");
+}
+
+function detectInstallMode() {
+  if (deferredInstallPrompt) return "native";
+  if (isIosDevice()) return "ios";
+
+  const ua = navigator.userAgent;
+  if (/firefox/i.test(ua)) return "firefox";
+  if (/edg/i.test(ua)) return "edge";
+  if (/chrome|crios/i.test(ua)) return "chrome";
+  if (/safari/i.test(ua)) return "safari";
+  return "generic";
+}
+
+function showInstallGuideToast(mode) {
+  const guides = {
+    chrome: "Chrome: ঠিকানা বারের ডান পাশে Install (⊕) আইকনে ক্লিক করুন",
+    edge: "Edge: ঠিকানা বারে 'অ্যাপ হিসেবে ইনস্টল করুন' বাটনে ক্লিক করুন",
+    firefox: "Firefox: মেনু (☰) → Install অথবা Page → Install App",
+    safari: "Safari: File → Add to Dock অথবা Share → Add to Home Screen",
+    ios: "iOS Safari: Share (□↑) → Add to Home Screen",
+    generic: "ব্রাউজার মেনু থেকে Install app বা Add to Home Screen খুঁজুন",
+    native: "ইনস্টল বাটনে ক্লিক করুন",
+  };
+  showToast(guides[mode] || guides.generic, "success");
+}
+
 async function maybeShowInstallBanner() {
   if (isInStandaloneMode()) return;
-  if (await isInstallDismissed()) return;
-
-  if (deferredInstallPrompt) {
-    showInstallBanner("native");
-    return;
-  }
-
-  if (isIosDevice()) {
-    showInstallBanner("ios");
-  }
+  if (isInstallDismissedThisSession()) return;
+  showInstallBanner(detectInstallMode());
 }
 
 function initInstallPrompt() {
   window.addEventListener("beforeinstallprompt", async (e) => {
     e.preventDefault();
     deferredInstallPrompt = e;
-    await maybeShowInstallBanner();
+    if (!isInStandaloneMode() && !isInstallDismissedThisSession()) {
+      showInstallBanner("native");
+    }
   });
 
-  if (isIosDevice() && !isInStandaloneMode()) {
-    setTimeout(() => maybeShowInstallBanner(), 1500);
-  }
-
-  document.getElementById("installBtn")?.addEventListener("click", async () => {
-    if (!deferredInstallPrompt) return;
-    deferredInstallPrompt.prompt();
-    await deferredInstallPrompt.userChoice;
+  window.addEventListener("appinstalled", () => {
     deferredInstallPrompt = null;
     hideInstallBanner();
+    showToast("Chat App ইনস্টল হয়েছে", "success");
   });
-  document.getElementById("dismissInstallBtn")?.addEventListener("click", async () => {
-    await dismissInstallPrompt();
+
+  setTimeout(() => maybeShowInstallBanner(), 1000);
+
+  document.getElementById("installBtn")?.addEventListener("click", async () => {
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      const { outcome } = await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      if (outcome === "accepted") hideInstallBanner();
+      return;
+    }
+    showInstallGuideToast(detectInstallMode());
+  });
+  document.getElementById("dismissInstallBtn")?.addEventListener("click", () => {
+    dismissInstallThisSession();
     hideInstallBanner();
   });
 }

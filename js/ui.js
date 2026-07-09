@@ -289,22 +289,72 @@ export function autoResizeTextarea(textarea) {
 export function showInstallBanner(mode = "native") {
   const banner = document.getElementById("installBanner");
   if (!banner) return;
-  banner.classList.toggle("ios-mode", mode === "ios");
+
+  const configs = {
+    native: {
+      ios: false,
+      title: "Chat App ইনস্টল করুন",
+      text: "এক ক্লিকে ইনস্টল করুন — দ্রুত ও অফলাইন অ্যাক্সেস",
+      btn: "ইনস্টল",
+      showBtn: true,
+    },
+    ios: {
+      ios: true,
+      title: "হোম স্ক্রিনে যোগ করুন",
+      text: "Safari-তে শেয়ার (□↑) → Add to Home Screen",
+      btn: "",
+      showBtn: false,
+    },
+    chrome: {
+      ios: false,
+      title: "Chat App ইনস্টল করুন",
+      text: "ঠিকানা বারে ইনস্টল (⊕) আইকনে ক্লিক করুন",
+      btn: "গাইড দেখুন",
+      showBtn: true,
+    },
+    edge: {
+      ios: false,
+      title: "Chat App ইনস্টল করুন",
+      text: "ঠিকানা বারে 'অ্যাপ হিসেবে ইনস্টল করুন' ক্লিক করুন",
+      btn: "গাইড দেখুন",
+      showBtn: true,
+    },
+    safari: {
+      ios: true,
+      title: "অ্যাপ হিসেবে যোগ করুন",
+      text: "Safari → File → Add to Dock অথবা Share → Add to Home Screen",
+      btn: "",
+      showBtn: false,
+    },
+    firefox: {
+      ios: false,
+      title: "Chat App ইনস্টল করুন",
+      text: "মেনু (☰) → Install অথবা Page → Install App (যদি থাকে)",
+      btn: "গাইড দেখুন",
+      showBtn: true,
+    },
+    generic: {
+      ios: false,
+      title: "Chat App ইনস্টল করুন",
+      text: "ব্রাউজার মেনু থেকে 'হোম স্ক্রিনে যোগ করুন' বা 'Install app' খুঁজুন",
+      btn: "গাইড দেখুন",
+      showBtn: true,
+    },
+  };
+
+  const config = configs[mode] || configs.generic;
+  banner.classList.toggle("ios-mode", config.ios);
+  banner.dataset.installMode = mode;
 
   const title = document.getElementById("installBannerTitle");
   const text = document.getElementById("installBannerText");
   const installBtn = document.getElementById("installBtn");
 
-  if (mode === "ios") {
-    if (title) title.textContent = "হোম স্ক্রিনে যোগ করুন";
-    if (text) {
-      text.textContent = "Safari-তে শেয়ার বাটন (□↑) → Add to Home Screen";
-    }
-    if (installBtn) installBtn.classList.add("d-none");
-  } else {
-    if (title) title.textContent = "Chat App ইনস্টল করুন";
-    if (text) text.textContent = "ডেস্কটপ, Android বা iOS-এ অ্যাপ হিসেবে ব্যবহার করুন";
-    if (installBtn) installBtn.classList.remove("d-none");
+  if (title) title.textContent = config.title;
+  if (text) text.textContent = config.text;
+  if (installBtn) {
+    installBtn.textContent = config.btn || "ইনস্টল";
+    installBtn.classList.toggle("d-none", !config.showBtn);
   }
 
   banner.classList.remove("d-none");
