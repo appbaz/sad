@@ -11,6 +11,14 @@ export const APP_NAME = "GitBridge";
 export const CHAT_IDLE_MS = 10 * 60 * 1000;
 export const ADMIN_SESSION_MS = 24 * 60 * 60 * 1000;
 export const ONLINE_THRESHOLD_MS = 90 * 1000;
+export const TYPING_TIMEOUT_MS = 3000;
+export const TYPING_STALE_MS = 30000;
+export const TYPING_DEBOUNCE_MS = 300;
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+export const MAX_IMAGE_DIMENSION = 960;
+/** Firestore doc সীমা ১ MB — base64 ছবি ~৪৫০ KB পর্যন্ত */
+export const MAX_IMAGE_DATA_URL_LENGTH = 520000;
+export const MESSAGE_DELETE_WINDOW_MS = 15 * 60 * 1000;
 
 export function normalizeUserId(raw) {
   return String(raw || "")

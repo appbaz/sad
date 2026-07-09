@@ -34,9 +34,21 @@ import { getPendingMessages, clearRoomSession } from "./store.js";
 import {
   enableOfflinePersistence,
   sendMessage,
+  sendImageMessage,
   listenToMessages,
+  listenRoomMeta,
   listenToRoomUsers,
+  markMessagesRead,
+  softDeleteMessage,
+  toggleMessagePin,
+  toggleReaction,
+  clearAllMessages,
+  searchMessages,
+  resetMarkReadCache,
 } from "./chat.js";
+import { listenPresence, setTyping, stopTyping, isPartnerTyping } from "./messaging/presence.js";
+import { compressImage, prepareImageForMessage } from "./messaging/media.js";
+import { getMessagePreviewText } from "./messaging/message-model.js";
 import { initOfflineSync, onConnectionStatusChange, flushOutbox, retryOutboxMessage } from "./offline.js";
 import {
   showView,
@@ -52,6 +64,16 @@ import {
   showWaitingForPartner,
   showChatReady,
   updatePartnerHeader,
+  showMessageContextMenu,
+  showReplyPreview,
+  showSearchOverlay,
+  showImageLightbox,
+  renderPinnedBar,
+  setUploadProgress,
+  pulseSendButton,
+  toggleRoomMenu,
+  scrollToBottom,
+  isOwnMessage,
 } from "./ui.js";
 import {
   renderAdminRoomList,
@@ -82,7 +104,7 @@ import {
   playSync,
   playSentConfirm,
 } from "./sounds.js";
-import { normalizeRoomCode, validateRoomCode, CHAT_IDLE_MS, APP_NAME } from "./constants.js";
+import { normalizeRoomCode, validateRoomCode, CHAT_IDLE_MS, APP_NAME, TYPING_DEBOUNCE_MS, MESSAGE_DELETE_WINDOW_MS } from "./constants.js";
 import { formatFirebaseError } from "./errors.js";
 
 let currentRoomId = null;
@@ -90,9 +112,15 @@ let partnerUsername = null;
 let unsubscribeMessages = null;
 let unsubscribeUsers = null;
 let unsubscribeMembers = null;
+let unsubscribePresence = null;
+let unsubscribeMeta = null;
 let pendingLocalMessages = [];
 let members = [];
 let usersOnline = [];
+let roomPresence = {};
+let roomClearedAt = 0;
+let replyToMessage = null;
+let typingDebounceTimer = null;
 let deferredInstallPrompt = null;
 let heartbeatTimer = null;
 let isEnteringChat = false;
@@ -104,6 +132,8 @@ let currentMessages = [];
 let adminRooms = [];
 let chatIdleTimer = null;
 let lastChatActivityAt = 0;
+let markReadTimer = null;
+let messagesListenerRoomId = null;
 
 const CHAT_AUTH_KEY = "chat-authenticated";
 
@@ -171,6 +201,16 @@ async function init() {
   document.getElementById("sendBtn")?.addEventListener("click", handleSend);
   document.getElementById("messageInput")?.addEventListener("input", handleInputChange);
   document.getElementById("messageInput")?.addEventListener("keydown", handleInputKeydown);
+  document.getElementById("attachImageBtn")?.addEventListener("click", () => document.getElementById("imageFileInput")?.click());
+  document.getElementById("imageFileInput")?.addEventListener("change", handleImageSelect);
+  document.getElementById("roomMenuBtn")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const menu = document.getElementById("roomMenu");
+    toggleRoomMenu(menu?.classList.contains("d-none"));
+  });
+  document.getElementById("searchMessagesBtn")?.addEventListener("click", handleOpenSearch);
+  document.getElementById("clearChatBtn")?.addEventListener("click", handleClearChat);
+  document.addEventListener("click", () => toggleRoomMenu(false));
 
   onAuthChange(async (user) => {
     if (isEnteringChat) return;
@@ -178,13 +218,24 @@ async function init() {
       if (user) await logout();
       return;
     }
-    if (user && currentRoomId && user.roomId === currentRoomId) {
-      enterChat(user);
-    } else if (user && currentRoomId && user.roomId !== currentRoomId) {
+    if (!user) {
+      if (sessionStarted) exitChat();
+      return;
+    }
+
+    if (!currentRoomId) currentRoomId = user.roomId;
+
+    if (user.roomId === currentRoomId) {
+      if (!sessionStarted) {
+        await fetchMembersOnce(user.roomId).catch(() => {});
+        enterChat(user);
+      }
+      return;
+    }
+
+    if (user.roomId !== currentRoomId) {
       await logout();
       setChatAuthenticated(false);
-    } else if (!user && sessionStarted) {
-      exitChat();
     }
   });
 
@@ -468,8 +519,13 @@ function enterChat(user) {
     sessionStarted = true;
   }
   const partner = getOtherMember(user.username);
-  if (partner) openPartnerChat(partner);
-  else showWaitingForPartner();
+  if (partner) {
+    if (partnerUsername !== partner.id) {
+      openPartnerChat(partner);
+    }
+  } else if (!partnerUsername) {
+    showWaitingForPartner();
+  }
 }
 
 function exitChat() {
@@ -521,10 +577,68 @@ async function handleSoundToggle() {
   if (isSoundEnabled()) playTap();
 }
 
+function getPartnerUserRecord(username) {
+  return usersOnline.find((u) => u.username === username) || null;
+}
+
+function refreshPartnerHeader() {
+  if (!partnerUsername) return;
+  const partner = getMemberById(partnerUsername);
+  if (!partner) return;
+  const online = isUsernameOnline(usersOnline, partnerUsername);
+  const record = getPartnerUserRecord(partnerUsername);
+  const typing = online && isPartnerTyping(roomPresence, partnerUsername);
+  updatePartnerHeader(partner, online, record?.lastSeen || 0, typing);
+}
+
+function getPinnedMessage() {
+  const pinned = currentMessages.filter((m) => m.pinned && !m.deletedAt);
+  if (!pinned.length) return null;
+  return pinned.sort((a, b) => (b.pinnedAt || b.createdAt) - (a.pinnedAt || a.createdAt))[0];
+}
+
+function buildReplyPayload(msg) {
+  if (!msg) return null;
+  return {
+    id: msg.id,
+    senderName: msg.senderName,
+    text: getMessagePreviewText(msg),
+  };
+}
+
+function refreshMessageUI() {
+  const me = getCurrentUser();
+  const partner = partnerUsername ? getMemberById(partnerUsername) : null;
+  if (!me) return;
+
+  renderMessages(currentMessages, me.username, me.uid, pendingLocalMessages, {
+    onRetry: handleRetry,
+    onContextMenu: handleMessageContextMenu,
+    onReaction: handleReactionToggle,
+    onImageOpen: showImageLightbox,
+    partnerUsername,
+  }, partner);
+
+  renderPinnedBar(getPinnedMessage(), async (msgId) => {
+    try {
+      await toggleMessagePin(currentRoomId, msgId, false);
+    } catch (err) {
+      showToast(formatFirebaseError(err));
+    }
+  });
+}
+
 function handleInputChange(e) {
   autoResizeTextarea(e.target);
   setSendEnabled(e.target.value.trim().length > 0);
   resetChatIdleTimer();
+
+  if (!currentRoomId) return;
+  if (typingDebounceTimer) clearTimeout(typingDebounceTimer);
+  typingDebounceTimer = setTimeout(() => {
+    const hasText = e.target.value.trim().length > 0;
+    setTyping(currentRoomId, hasText).catch(() => {});
+  }, TYPING_DEBOUNCE_MS);
 }
 
 function handleInputKeydown(e) {
@@ -541,19 +655,150 @@ async function handleSend() {
   const me = getCurrentUser();
   if (!me) return;
 
+  const replyTo = buildReplyPayload(replyToMessage);
   clearMessageInput();
   playSend();
+  pulseSendButton();
   resetChatIdleTimer();
+  stopTyping(currentRoomId);
 
   try {
-    const optimistic = await sendMessage(currentRoomId, text);
+    const optimistic = await sendMessage(currentRoomId, text, { replyTo });
     if (optimistic) {
       pendingLocalMessages.push(optimistic);
-      renderMessages(currentMessages, me.username, me.uid, pendingLocalMessages, handleRetry, getMemberById(partnerUsername));
+      refreshMessageUI();
     }
+    replyToMessage = null;
+    showReplyPreview(null);
     if (navigator.onLine) flushOutbox();
   } catch (err) {
     playError();
+    showToast(formatFirebaseError(err));
+  }
+}
+
+async function handleImageSelect(e) {
+  const file = e.target.files?.[0];
+  e.target.value = "";
+  if (!file || !currentRoomId || !partnerUsername) return;
+
+  const me = getCurrentUser();
+  if (!me) return;
+
+  try {
+    setUploadProgress(true, 0);
+    const { imageUrl, width, height } = await prepareImageForMessage(file, (p) =>
+      setUploadProgress(true, p)
+    );
+    const caption = document.getElementById("messageInput")?.value?.trim() || "";
+    const replyTo = buildReplyPayload(replyToMessage);
+
+    await sendImageMessage(currentRoomId, imageUrl, { width, height, replyTo }, caption);
+    clearMessageInput();
+    replyToMessage = null;
+    showReplyPreview(null);
+    playSend();
+    setUploadProgress(false);
+    showToast("ছবি পাঠানো হয়েছে", "success");
+  } catch (err) {
+    setUploadProgress(false);
+    playError();
+    showToast(formatFirebaseError(err));
+  }
+}
+
+function handleMessageContextMenu(e, msg) {
+  const me = getCurrentUser();
+  if (!me || !currentRoomId) return;
+
+  const x = e.clientX || e.touches?.[0]?.clientX || 0;
+  const y = e.clientY || e.touches?.[0]?.clientY || 0;
+  const own = isOwnMessage(msg, me.username, me.uid);
+  const canDelete =
+    own &&
+    !msg.deletedAt &&
+    Date.now() - (msg.createdAt || 0) < MESSAGE_DELETE_WINDOW_MS;
+
+  const items = [
+    { action: "reply", label: "উত্তর দিন" },
+    { action: "copy", label: "কপি করুন" },
+    { action: "pin", label: msg.pinned ? "আনপিন করুন" : "পিন করুন" },
+  ];
+
+  if (canDelete) {
+    items.push({ action: "delete", label: "মুছুন", danger: true });
+  }
+
+  items.push({ action: "react", label: "রিঅ্যাকশন" });
+
+  showMessageContextMenu(x, y, items, async (action) => {
+    try {
+      if (action === "reply") {
+        replyToMessage = msg;
+        showReplyPreview(msg, () => {
+          replyToMessage = null;
+          showReplyPreview(null);
+        });
+        focusMessageInput();
+      } else if (action === "copy") {
+        await navigator.clipboard.writeText(getMessagePreviewText(msg));
+        showToast("কপি হয়েছে", "success");
+      } else if (action === "pin") {
+        await toggleMessagePin(currentRoomId, msg.id, !msg.pinned);
+      } else if (action === "delete") {
+        if (!confirm("এই মেসেজ মুছে ফেলবেন?")) return;
+        await softDeleteMessage(currentRoomId, msg.id);
+      } else if (action === "react") {
+        await toggleReaction(currentRoomId, msg.id, "👍", msg.reactions || {});
+      }
+    } catch (err) {
+      showToast(formatFirebaseError(err));
+    }
+  });
+}
+
+async function handleReactionToggle(messageId, emoji) {
+  const msg = currentMessages.find((m) => m.id === messageId);
+  if (!msg || !currentRoomId) return;
+  try {
+    await toggleReaction(currentRoomId, messageId, emoji, msg.reactions || {});
+  } catch (err) {
+    showToast(formatFirebaseError(err));
+  }
+}
+
+function handleOpenSearch() {
+  toggleRoomMenu(false);
+  const runSearch = (queryText) => {
+    const results = searchMessages(currentMessages, queryText);
+    showSearchOverlay(
+      results,
+      queryText,
+      runSearch,
+      (msgId) => {
+        const row = document.querySelector(`[data-msg-id="${msgId}"]`);
+        row?.scrollIntoView({ behavior: "smooth", block: "center" });
+        row?.classList.add("msg-highlight");
+        setTimeout(() => row?.classList.remove("msg-highlight"), 1600);
+      },
+      () => {}
+    );
+  };
+  runSearch("");
+}
+
+async function handleClearChat() {
+  toggleRoomMenu(false);
+  if (!currentRoomId) return;
+  if (!confirm("সমস্ত কথোপকথন মুছে ফেলবেন? এটি পূর্বাবস্থায় ফেরানো যাবে না।")) return;
+
+  try {
+    await clearAllMessages(currentRoomId);
+    currentMessages = [];
+    pendingLocalMessages = [];
+    refreshMessageUI();
+    showToast("কথোপকথন মুছে ফেলা হয়েছে", "success");
+  } catch (err) {
     showToast(formatFirebaseError(err));
   }
 }
@@ -580,10 +825,14 @@ function startChatSession() {
   unsubscribeMembers = listenToMembers(currentRoomId, onMembersUpdated);
   unsubscribeUsers = listenToRoomUsers(currentRoomId, (users) => {
     usersOnline = users;
-    if (partnerUsername) {
-      const partner = getMemberById(partnerUsername);
-      if (partner) updatePartnerHeader(partner, isUsernameOnline(users, partnerUsername));
-    }
+    refreshPartnerHeader();
+  });
+  unsubscribePresence = listenPresence(currentRoomId, (presence) => {
+    roomPresence = presence;
+    refreshPartnerHeader();
+  });
+  unsubscribeMeta = listenRoomMeta(currentRoomId, (meta) => {
+    roomClearedAt = meta.clearedAt || 0;
   });
   heartbeatTimer = setInterval(sendHeartbeat, 30000);
   sendHeartbeat();
@@ -592,9 +841,24 @@ function startChatSession() {
 
 function stopChatSession() {
   stopChatIdleWatch();
+  stopTyping(currentRoomId);
+  if (typingDebounceTimer) {
+    clearTimeout(typingDebounceTimer);
+    typingDebounceTimer = null;
+  }
+  if (markReadTimer) {
+    clearTimeout(markReadTimer);
+    markReadTimer = null;
+  }
+  resetMarkReadCache();
+  replyToMessage = null;
+  showReplyPreview(null);
+  messagesListenerRoomId = null;
   if (unsubscribeMessages) { unsubscribeMessages(); unsubscribeMessages = null; }
   if (unsubscribeUsers) { unsubscribeUsers(); unsubscribeUsers = null; }
   if (unsubscribeMembers) { unsubscribeMembers(); unsubscribeMembers = null; }
+  if (unsubscribePresence) { unsubscribePresence(); unsubscribePresence = null; }
+  if (unsubscribeMeta) { unsubscribeMeta(); unsubscribeMeta = null; }
   if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
 }
 
@@ -602,8 +866,14 @@ async function openPartnerChat(partner) {
   const me = getCurrentUser();
   if (!me || !partner || !currentRoomId) return;
 
+  if (partnerUsername === partner.id && unsubscribeMessages && messagesListenerRoomId === currentRoomId) {
+    refreshPartnerHeader();
+    return;
+  }
+
   partnerUsername = partner.id;
-  showChatReady(partner, isUsernameOnline(usersOnline, partner.id));
+  const record = getPartnerUserRecord(partner.id);
+  showChatReady(partner, isUsernameOnline(usersOnline, partner.id), record?.lastSeen || 0);
   focusMessageInput();
 
   if (unsubscribeMessages) unsubscribeMessages();
@@ -611,6 +881,8 @@ async function openPartnerChat(partner) {
   pendingLocalMessages = [];
   knownMessageIds = new Set();
   messagesInitialized = false;
+  resetMarkReadCache();
+  messagesListenerRoomId = currentRoomId;
 
   unsubscribeMessages = listenToMessages(currentRoomId, async (messages, err) => {
     if (err) {
@@ -640,6 +912,9 @@ async function openPartnerChat(partner) {
         senderId: me.username,
         senderName: me.displayName || me.username,
         text: p.text,
+        type: p.type,
+        imageUrl: p.imageUrl,
+        replyTo: p.replyTo,
         createdAt: p.createdAt,
         status: p.status === "failed" ? "failed" : "pending",
         pending: true,
@@ -651,8 +926,13 @@ async function openPartnerChat(partner) {
       }
     });
 
-    renderMessages(currentMessages, me.username, me.uid, pendingLocalMessages, handleRetry, partner);
-  });
+    refreshMessageUI();
+
+    if (markReadTimer) clearTimeout(markReadTimer);
+    markReadTimer = setTimeout(() => {
+      markMessagesRead(currentRoomId, currentMessages, me.username).catch(() => {});
+    }, 400);
+  }, roomClearedAt);
 }
 
 function initDeviceLifecycle() {

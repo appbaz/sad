@@ -1,5 +1,7 @@
 import { getPendingMessages, updateOutboxMessage, removeFromOutbox } from "./store.js";
-import { sendMessageToServer, retryOutboxMessage } from "./chat.js";
+import { sendMessageToServer, retryOutboxMessage } from "./messaging/messages.js";
+import { getCurrentUser } from "./auth.js";
+import { buildMessagePayload, MESSAGE_TYPES } from "./messaging/message-model.js";
 
 let connectionStatus = "online";
 let statusCallback = null;
@@ -39,7 +41,15 @@ export async function flushOutbox() {
 
       await updateOutboxMessage(item.id, { status: "pending" });
       try {
-        await sendMessageToServer(item.roomId, item.text, item.id);
+        const me = getCurrentUser();
+        if (!me) throw new Error("লগইন করা নেই");
+        const payload = buildMessagePayload(me, {
+          text: item.text,
+          type: item.type || MESSAGE_TYPES.TEXT,
+          imageUrl: item.imageUrl,
+          replyTo: item.replyTo,
+        });
+        await sendMessageToServer(item.roomId, payload, item.id);
         await removeFromOutbox(item.id);
       } catch {
         const retries = (item.retries || 0) + 1;

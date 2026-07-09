@@ -109,6 +109,19 @@ export async function deleteRoom(roomId) {
   }
 
   try {
+    const presenceSnap = await getDocs(collection(db, "rooms", roomId, "presence"));
+    for (const p of presenceSnap.docs) {
+      await deleteDoc(p.ref);
+    }
+    const metaSnap = await getDocs(collection(db, "rooms", roomId, "meta"));
+    for (const m of metaSnap.docs) {
+      await deleteDoc(m.ref);
+    }
+  } catch {
+    /* optional cleanup */
+  }
+
+  try {
     await deleteDoc(roomRef);
   } catch (err) {
     if (err?.code === "permission-denied") {

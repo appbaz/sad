@@ -19,6 +19,7 @@ import {
 } from "./store.js";
 
 let currentUserDoc = null;
+let lastAuthUid = null;
 
 async function attachDeviceSession(uid, roomId, username) {
   const memberSnap = await getDoc(doc(db, "rooms", roomId, "members", username));
@@ -91,6 +92,7 @@ export function onAuthChange(callback) {
   return onAuthStateChanged(auth, async (user) => {
     if (!user) {
       currentUserDoc = null;
+      lastAuthUid = null;
       callback(null);
       return;
     }
@@ -103,13 +105,19 @@ export function onAuthChange(callback) {
       return;
     }
 
+    const isNewAuthSession = lastAuthUid !== user.uid;
+    lastAuthUid = user.uid;
     currentUserDoc = { uid: user.uid, ...snap.data() };
-    await setDoc(
-      userRef,
-      { isOnline: true, lastSeen: serverTimestamp() },
-      { merge: true }
-    ).catch(() => {});
-    await touchDeviceSession().catch(() => {});
+
+    if (isNewAuthSession) {
+      await setDoc(
+        userRef,
+        { isOnline: true, lastSeen: serverTimestamp() },
+        { merge: true }
+      ).catch(() => {});
+      await touchDeviceSession().catch(() => {});
+    }
+
     callback(currentUserDoc);
   });
 }

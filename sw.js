@@ -1,4 +1,4 @@
-const CACHE_NAME = "gitbridge-v33";
+const CACHE_NAME = "gitbridge-v37";
 
 const ASSETS = [
   "./",
@@ -20,6 +20,13 @@ const ASSETS = [
   "./js/crypto-utils.js",
   "./js/auth.js",
   "./js/chat.js",
+  "./js/messaging/message-model.js",
+  "./js/messaging/messages.js",
+  "./js/messaging/presence.js",
+  "./js/messaging/links.js",
+  "./js/messaging/media.js",
+  "./js/ui/format.js",
+  "./js/ui-messages.js",
   "./js/ui.js",
   "./js/ui-admin.js",
   "./js/sounds.js",
@@ -40,6 +47,7 @@ const ASSETS = [
 const FIREBASE_HOSTS = [
   "firestore.googleapis.com",
   "firebase.googleapis.com",
+  "firebasestorage.googleapis.com",
   "identitytoolkit.googleapis.com",
   "securetoken.googleapis.com",
   "www.googleapis.com",

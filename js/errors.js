@@ -21,8 +21,25 @@ export function formatFirebaseError(err) {
       return "Firestore index লাগতে পারে — Console-এর লিংক থেকে index তৈরি করুন";
     case "invalid-argument":
       return "অবৈধ ডেটা — সব ফিল্ড সঠিকভাবে পূরণ করুন";
+    case "storage/unauthorized":
+    case "storage/unauthenticated":
+      return "ছবি আপলোডের অনুমতি নেই — লগইন করে আবার চেষ্টা করুন";
+    case "storage/bucket-not-found":
+    case "storage/object-not-found":
+      return "Firebase Storage চালু নেই বা bucket সঠিক নয় — Console → Storage → Get started, তারপর storage.rules deploy করুন";
+    case "storage/canceled":
+      return "আপলোড বাতিল হয়েছে";
+    case "storage/quota-exceeded":
+      return "Storage সীমা পূর্ণ — পুরনো ফাইল মুছুন বা প্ল্যান আপগ্রেড করুন";
     default:
       break;
+  }
+
+  if (code.startsWith("storage/") || message.includes("Firebase Storage")) {
+    if (/404|not found/i.test(message)) {
+      return "Firebase Storage bucket পাওয়া যায়নি — Console → Storage চালু করুন এবং js/firebase-config.js-এ সঠিক storageBucket দিন";
+    }
+    return "ছবি আপলোড ব্যর্থ — Storage rules deploy করুন: firebase deploy --only storage";
   }
 
   if (/https?:\/\//.test(message) && message.length > 120) {
