@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "Chat App — ব্যক্তিগত চ্যাট",
-  "short_name": "Chat App",
-  "description": "ইউজারনেম ও পাসওয়ার্ড দিয়ে নিরাপদ ১-অন-১ চ্যাট। Desktop, Android ও iOS-এ ইনস্টল করুন।",
+  "name": "GitBridge — ব্যক্তিগত বার্তা",
+  "short_name": "GitBridge",
+  "description": "ইউজারনেম ও পাসওয়ার্ড দিয়ে নিরাপদ ১-অন-১ যোগাযোগ। Desktop, Android ও iOS-এ ইনস্টল করুন।",
   "lang": "bn",
   "dir": "ltr",
   "start_url": "./",

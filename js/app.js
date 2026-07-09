@@ -82,7 +82,7 @@ import {
   playSync,
   playSentConfirm,
 } from "./sounds.js";
-import { normalizeRoomCode, validateRoomCode, CHAT_IDLE_MS } from "./constants.js";
+import { normalizeRoomCode, validateRoomCode, CHAT_IDLE_MS, APP_NAME } from "./constants.js";
 import { formatFirebaseError } from "./errors.js";
 
 let currentRoomId = null;
@@ -448,9 +448,9 @@ async function startChatFromLogin(roomId, password) {
     setChatAuthenticated(true);
     enterChat(user);
     playLogin();
-    showToast("চ্যাট শুরু হয়েছে", "success");
+    showToast("সংযোগ স্থাপিত হয়েছে", "success");
   } catch (err) {
-    console.error("Chat login failed:", err);
+    console.error("Login failed:", err);
     playError();
     showChatLoginError(formatFirebaseError(err));
   } finally {
@@ -744,7 +744,7 @@ function initInstallPrompt() {
   window.addEventListener("appinstalled", () => {
     deferredInstallPrompt = null;
     hideInstallBanner();
-    showToast("Chat App ইনস্টল হয়েছে", "success");
+    showToast(`${APP_NAME} ইনস্টল হয়েছে`, "success");
   });
 
   setTimeout(() => maybeShowInstallBanner(), 1000);

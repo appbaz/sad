@@ -145,6 +145,6 @@ export function setChatLoginQuickMode(enabled, roomId = "") {
   }
 
   if (btnText) {
-    btnText.textContent = enabled ? "চালিয়ে যান" : "চ্যাট শুরু করুন";
+    btnText.textContent = enabled ? "চালিয়ে যান" : "প্রবেশ করুন";
   }
 }

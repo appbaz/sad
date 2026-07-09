@@ -1,4 +1,4 @@
-const CACHE_NAME = "chat-app-v31";
+const CACHE_NAME = "gitbridge-v32";
 
 const ASSETS = [
   "./",

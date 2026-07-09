@@ -3,37 +3,37 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="description" content="Chat App — ইউজারনেম ও পাসওয়ার্ড দিয়ে নিরাপদ ১-অন-১ চ্যাট। Desktop, Android ও iOS-এ ইনস্টল করুন।">
-  <meta name="application-name" content="Chat App">
+  <meta name="description" content="GitBridge — ইউজারনেম ও পাসওয়ার্ড দিয়ে নিরাপদ ১-অন-১ যোগাযোগ। Desktop, Android ও iOS-এ ইনস্টল করুন।">
+  <meta name="application-name" content="GitBridge">
   <meta name="theme-color" content="#075e54">
   <meta name="color-scheme" content="light">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Chat App">
+  <meta name="apple-mobile-web-app-title" content="GitBridge">
   <meta name="format-detection" content="telephone=no">
   <meta name="msapplication-TileColor" content="#075e54">
   <meta name="msapplication-TileImage" content="icons/icon-192.png">
 
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="Chat App">
+  <meta property="og:site_name" content="GitBridge">
   <meta property="og:locale" content="bn_BD">
-  <meta property="og:title" content="Chat App — ব্যক্তিগত ১-অন-১ চ্যাট">
-  <meta property="og:description" content="ইউজারনেম ও পাসওয়ার্ড দিয়ে নিরাপদ চ্যাট। যেকোনো ডিভাইসে ইনস্টল করুন।">
+  <meta property="og:title" content="GitBridge — ব্যক্তিগত ১-অন-১ যোগাযোগ">
+  <meta property="og:description" content="ইউজারনেম ও পাসওয়ার্ড দিয়ে নিরাপদ বার্তা। যেকোনো ডিভাইসে ইনস্টল করুন।">
   <meta property="og:url" content="https://appbaz.github.io/sad/">
   <meta property="og:image" content="https://appbaz.github.io/sad/icons/og-image.jpg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="Chat App — ব্যক্তিগত ১-অন-১ চ্যাট">
+  <meta property="og:image:alt" content="GitBridge — ব্যক্তিগত ১-অন-১ যোগাযোগ">
 
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Chat App — ব্যক্তিগত ১-অন-১ চ্যাট">
-  <meta name="twitter:description" content="ইউজারনেম ও পাসওয়ার্ড দিয়ে নিরাপদ চ্যাট। Desktop, Android ও iOS-এ ইনস্টল করুন।">
+  <meta name="twitter:title" content="GitBridge — ব্যক্তিগত ১-অন-১ যোগাযোগ">
+  <meta name="twitter:description" content="ইউজারনেম ও পাসওয়ার্ড দিয়ে নিরাপদ বার্তা। Desktop, Android ও iOS-এ ইনস্টল করুন।">
   <meta name="twitter:image" content="https://appbaz.github.io/sad/icons/og-image.jpg">
-  <meta name="twitter:image:alt" content="Chat App — ব্যক্তিগত ১-অন-১ চ্যাট">
+  <meta name="twitter:image:alt" content="GitBridge — ব্যক্তিগত ১-অন-১ যোগাযোগ">
 
   <link rel="canonical" href="https://appbaz.github.io/sad/">
-  <title>Chat App — ব্যক্তিগত চ্যাট</title>
+  <title>GitBridge</title>
   <script>
     (function () {
       var redirect = sessionStorage.getItem("spa-path");
@@ -62,13 +62,13 @@
     <span id="connectionText">অনলাইন</span>
   </div>
 
-  <!-- Home: Chat login (username = room, password = user identity) -->
+  <!-- Home: login (username = room, password = user identity) -->
   <div id="homeView" class="view login-view">
     <div class="login-card card shadow-sm">
       <div class="card-body p-4">
         <div class="text-center mb-4">
-          <div class="app-logo mx-auto mb-3">💬</div>
-          <h1 class="h4 mb-1">Chat App</h1>
+          <div class="app-logo mx-auto mb-3">🌉</div>
+          <h1 class="h4 mb-1">GitBridge</h1>
           <p class="text-muted small mb-0">ইউজারনেম (রুম) ও পাসওয়ার্ড দিয়ে প্রবেশ করুন</p>
         </div>
 
@@ -78,7 +78,7 @@
           <div class="form-floating mb-3">
             <input type="text" class="form-control" id="chatRoomInput" placeholder="ইউজারনেম" autocomplete="off" autocapitalize="none" spellcheck="false" required>
             <label for="chatRoomInput">ইউজারনেম (রুম)</label>
-            <div class="form-text">প্রতিটি ইউজারনেম একটি আলাদা চ্যাট রুম</div>
+            <div class="form-text">প্রতিটি ইউজারনেম একটি আলাদা রুম</div>
           </div>
           <div class="form-floating mb-4" id="chatPasswordWrap">
             <input type="password" class="form-control" id="chatPasswordInput" placeholder="পাসওয়ার্ড" autocomplete="off" required>
@@ -86,7 +86,7 @@
             <div class="form-text">আপনার পাসওয়ার্ড আপনাকে চিনবে</div>
           </div>
           <button type="submit" class="btn btn-primary w-100 btn-lg" id="chatLoginBtn">
-            <span class="chat-login-btn-text">চ্যাট শুরু করুন</span>
+            <span class="chat-login-btn-text">প্রবেশ করুন</span>
             <span class="spinner-border spinner-border-sm d-none ms-2" id="chatLoginSpinner" role="status"></span>
           </button>
         </form>
@@ -181,7 +181,7 @@
     </div>
   </div>
 
-  <!-- Chat View -->
+  <!-- Message view -->
   <div id="chatView" class="view chat-view d-none">
     <div class="chat-shell" id="chatLayout">
       <header class="chat-header">
@@ -206,13 +206,13 @@
       <div class="waiting-partner d-none" id="waitingPartner">
         <div class="waiting-card">
           <div class="waiting-avatar-ring" aria-hidden="true">
-            <div class="waiting-avatar-inner">💬</div>
+            <div class="waiting-avatar-inner">🌉</div>
           </div>
           <div class="waiting-pulse" aria-hidden="true">
             <span></span><span></span><span></span>
           </div>
           <h2 class="h5 mb-2">সঙ্গীর অপেক্ষায়</h2>
-          <p class="text-muted small mb-0">সঙ্গী রুমে ঢুকলে চ্যাট স্বয়ংক্রিয়ভাবে শুরু হবে</p>
+          <p class="text-muted small mb-0">সঙ্গী রুমে ঢুকলে কথোপকথন স্বয়ংক্রিয়ভাবে শুরু হবে</p>
         </div>
       </div>
 
@@ -248,7 +248,7 @@
       <img src="icons/icon-192.png" alt="" width="52" height="52">
     </div>
     <div class="install-banner-body">
-      <div class="install-banner-title" id="installBannerTitle">Chat App ইনস্টল করুন</div>
+      <div class="install-banner-title" id="installBannerTitle">GitBridge ইনস্টল করুন</div>
       <div class="install-banner-text" id="installBannerText">হোম স্ক্রিনে যোগ করুন — দ্রুত ও অফলাইন অ্যাক্সেস</div>
     </div>
     <div class="install-banner-actions">

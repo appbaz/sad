@@ -1,4 +1,5 @@
 import { getUserIndex } from "./users.js";
+import { APP_NAME } from "./constants.js";
 
 const AVATAR_COLORS = 10;
 
@@ -293,7 +294,7 @@ export function showInstallBanner(mode = "native") {
   const configs = {
     native: {
       ios: false,
-      title: "Chat App ইনস্টল করুন",
+      title: `${APP_NAME} ইনস্টল করুন`,
       text: "এক ক্লিকে ইনস্টল করুন — দ্রুত ও অফলাইন অ্যাক্সেস",
       btn: "ইনস্টল",
       showBtn: true,
@@ -307,14 +308,14 @@ export function showInstallBanner(mode = "native") {
     },
     chrome: {
       ios: false,
-      title: "Chat App ইনস্টল করুন",
+      title: `${APP_NAME} ইনস্টল করুন`,
       text: "ঠিকানা বারে ইনস্টল (⊕) আইকনে ক্লিক করুন",
       btn: "গাইড দেখুন",
       showBtn: true,
     },
     edge: {
       ios: false,
-      title: "Chat App ইনস্টল করুন",
+      title: `${APP_NAME} ইনস্টল করুন`,
       text: "ঠিকানা বারে 'অ্যাপ হিসেবে ইনস্টল করুন' ক্লিক করুন",
       btn: "গাইড দেখুন",
       showBtn: true,
@@ -328,14 +329,14 @@ export function showInstallBanner(mode = "native") {
     },
     firefox: {
       ios: false,
-      title: "Chat App ইনস্টল করুন",
+      title: `${APP_NAME} ইনস্টল করুন`,
       text: "মেনু (☰) → Install অথবা Page → Install App (যদি থাকে)",
       btn: "গাইড দেখুন",
       showBtn: true,
     },
     generic: {
       ios: false,
-      title: "Chat App ইনস্টল করুন",
+      title: `${APP_NAME} ইনস্টল করুন`,
       text: "ব্রাউজার মেনু থেকে 'হোম স্ক্রিনে যোগ করুন' বা 'Install app' খুঁজুন",
       btn: "গাইড দেখুন",
       showBtn: true,
