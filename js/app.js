@@ -39,6 +39,7 @@ import {
   listenRoomMeta,
   listenToRoomUsers,
   markMessagesRead,
+  markMessagesDelivered,
   softDeleteMessage,
   toggleMessagePin,
   toggleReaction,
@@ -942,6 +943,8 @@ async function openPartnerChat(partner) {
     });
 
     refreshMessageUI();
+
+    markMessagesDelivered(currentRoomId, messages, me.username).catch(() => {});
 
     if (markReadTimer) clearTimeout(markReadTimer);
     markReadTimer = setTimeout(() => {

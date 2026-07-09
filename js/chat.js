@@ -5,6 +5,7 @@ export {
   listenToMessages,
   listenRoomMeta,
   markMessagesRead,
+  markMessagesDelivered,
   softDeleteMessage,
   toggleMessagePin,
   toggleReaction,

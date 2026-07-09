@@ -550,7 +550,9 @@ html, body {
   line-height: 1;
 }
 
-.msg-status.sent { color: #53bdeb; }
+.msg-status.sent { color: #8696a0; }
+.msg-status.delivered { color: #8696a0; }
+.msg-status.seen { color: #53bdeb; }
 .msg-status.pending { color: #8696a0; animation: tickBlink 1.2s ease infinite; }
 .msg-status.failed { color: #ea4335; }
 
@@ -1284,10 +1286,6 @@ html, body {
   font-size: 0.85rem;
   color: #8696a0;
   font-style: italic;
-}
-
-.msg-status.read {
-  color: #53bdeb;
 }
 
 .msg-highlight .msg-bubble {

@@ -36,6 +36,7 @@ export function normalizeMessage(doc) {
     deletedBy: data.deletedBy || null,
     read: data.read === true,
     readBy: data.readBy || {},
+    deliveredBy: data.deliveredBy || {},
     replyTo: data.replyTo || null,
     reactions: data.reactions || {},
     pinned: data.pinned === true,
@@ -64,9 +65,22 @@ export function getMessagePreviewText(msg) {
 
 export function isMessageReadBy(msg, username) {
   if (!msg || !username) return false;
-  const readBy = msg.readBy || {};
-  if (readBy[username]) return true;
-  return msg.read === true;
+  return msg.readBy?.[username] != null;
+}
+
+export function isMessageDeliveredBy(msg, username) {
+  if (!msg || !username) return false;
+  return msg.deliveredBy?.[username] != null;
+}
+
+/** Own message: sent → delivered → seen */
+export function getOwnMessageStatus(msg, partnerUsername, localStatus = "sent") {
+  if (localStatus === "pending" || localStatus === "sending") return localStatus;
+  if (localStatus === "failed") return "failed";
+  if (!partnerUsername) return "sent";
+  if (isMessageReadBy(msg, partnerUsername)) return "seen";
+  if (isMessageDeliveredBy(msg, partnerUsername)) return "delivered";
+  return "sent";
 }
 
 export function buildMessagePayload(me, fields) {
@@ -77,6 +91,7 @@ export function buildMessagePayload(me, fields) {
     senderUid: me.uid,
     read: false,
     readBy: {},
+    deliveredBy: {},
     reactions: {},
     pinned: false,
     ...fields,

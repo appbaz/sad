@@ -245,6 +245,33 @@ export async function markMessageRead(roomId, messageId) {
   }).catch(() => {});
 }
 
+export async function markMessagesDelivered(roomId, messages, myUsername) {
+  const undelivered = messages.filter(
+    (m) =>
+      m.senderId !== myUsername &&
+      !m.deletedAt &&
+      !isAlreadyDelivered(m, myUsername)
+  );
+  if (!undelivered.length) return;
+
+  undelivered.forEach((m) => pendingMarkDeliveredIds.add(m.id));
+
+  const batch = writeBatch(db);
+  undelivered.slice(0, 50).forEach((m) => {
+    const ref = doc(db, "rooms", roomId, "messages", m.id);
+    batch.update(ref, {
+      [`deliveredBy.${myUsername}`]: serverTimestamp(),
+    });
+  });
+
+  try {
+    await batch.commit();
+  } catch (err) {
+    undelivered.forEach((m) => pendingMarkDeliveredIds.delete(m.id));
+    console.warn("markMessagesDelivered failed:", err);
+  }
+}
+
 export async function markMessagesRead(roomId, messages, myUsername) {
   const unread = messages.filter(
     (m) =>
@@ -274,16 +301,23 @@ export async function markMessagesRead(roomId, messages, myUsername) {
 }
 
 const pendingMarkReadIds = new Set();
+const pendingMarkDeliveredIds = new Set();
 
 function isAlreadyRead(msg, username) {
   if (!username) return false;
   if (pendingMarkReadIds.has(msg.id)) return true;
-  const readBy = msg.readBy || {};
-  return readBy[username] != null;
+  return msg.readBy?.[username] != null;
+}
+
+function isAlreadyDelivered(msg, username) {
+  if (!username) return false;
+  if (pendingMarkDeliveredIds.has(msg.id)) return true;
+  return msg.deliveredBy?.[username] != null;
 }
 
 export function resetMarkReadCache() {
   pendingMarkReadIds.clear();
+  pendingMarkDeliveredIds.clear();
 }
 
 export async function softDeleteMessage(roomId, messageId) {

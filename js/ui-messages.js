@@ -1,5 +1,5 @@
 import { getUserIndex } from "./users.js";
-import { REACTION_EMOJIS, MESSAGE_TYPES, isMessageDeleted, isMessageReadBy, getMessagePreviewText } from "./messaging/message-model.js";
+import { REACTION_EMOJIS, MESSAGE_TYPES, isMessageDeleted, getMessagePreviewText, getOwnMessageStatus } from "./messaging/message-model.js";
 import { linkifyText } from "./messaging/links.js";
 import { formatTime, formatDateSeparator } from "./ui/format.js";
 
@@ -20,28 +20,30 @@ export function escapeHtml(text) {
   return div.innerHTML;
 }
 
-function renderStatusIcon(status, msg, myUsername, partnerUsername) {
+const DOUBLE_TICK_SVG = `<svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><path d="M10.97 1.46a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0L.97 6.53a.75.75 0 0 1 0-1.06l1.5-1.5a.75.75 0 0 1 1.06 0l3.22 3.22 5.22-5.22z"/><path d="M5.47 1.46a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1 0 1.06l-.22.22-1.28-1.28 2.72-2.72a.75.75 0 0 0-1.06-1.06L6.53 3.4 5.47 2.34a.75.75 0 0 1 0-1.06z" opacity="0.85"/></svg>`;
+
+const SINGLE_TICK_SVG = `<svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor" aria-hidden="true"><path d="M10.97 1.46a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0L.97 6.53a.75.75 0 0 1 0-1.06l1.5-1.5a.75.75 0 0 1 1.06 0l3.22 3.22 5.22-5.22z"/></svg>`;
+
+function renderStatusIcon(localStatus, msg, partnerUsername) {
+  const status = getOwnMessageStatus(msg, partnerUsername, localStatus);
+
   if (status === "sending" || status === "pending") {
-    return `<span class="msg-status pending" aria-label="পাঠানো হচ্ছে">
+    return `<span class="msg-status pending" title="পাঠানো হচ্ছে" aria-label="পাঠানো হচ্ছে">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z"/><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/></svg>
     </span>`;
   }
   if (status === "failed") {
-    return `<span class="msg-status failed" aria-label="ব্যর্থ">
+    return `<span class="msg-status failed" title="ব্যর্থ" aria-label="ব্যর্থ">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/></svg>
     </span>`;
   }
-
-  const read = partnerUsername && isMessageReadBy(msg, partnerUsername);
-  if (read) {
-    return `<span class="msg-status read" aria-label="পড়া হয়েছে">
-      <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor"><path d="M10.97 1.46a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0L.97 6.53a.75.75 0 0 1 0-1.06l1.5-1.5a.75.75 0 0 1 1.06 0l3.22 3.22 5.22-5.22z"/><path d="M5.47 1.46a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1 0 1.06l-.22.22-1.28-1.28 2.72-2.72a.75.75 0 0 0-1.06-1.06L6.53 3.4 5.47 2.34a.75.75 0 0 1 0-1.06z" opacity="0.85"/></svg>
-    </span>`;
+  if (status === "seen") {
+    return `<span class="msg-status seen" title="দেখা হয়েছে" aria-label="দেখা হয়েছে">${DOUBLE_TICK_SVG}</span>`;
   }
-
-  return `<span class="msg-status sent" aria-label="পাঠানো হয়েছে">
-    <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor"><path d="M10.97 1.46a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0L.97 6.53a.75.75 0 0 1 0-1.06l1.5-1.5a.75.75 0 0 1 1.06 0l3.22 3.22 5.22-5.22z"/></svg>
-  </span>`;
+  if (status === "delivered") {
+    return `<span class="msg-status delivered" title="পৌঁছেছে" aria-label="পৌঁছেছে">${DOUBLE_TICK_SVG}</span>`;
+  }
+  return `<span class="msg-status sent" title="পাঠানো হয়েছে" aria-label="পাঠানো হয়েছে">${SINGLE_TICK_SVG}</span>`;
 }
 
 function getMessageGroupClasses(isOwn, isFirst, isLast) {
@@ -238,7 +240,7 @@ export function renderMessages(messages, currentUsername, currentUid, pendingLoc
     const delay = Math.min(animIndex * 0.02, 0.3);
     animIndex += 1;
 
-    const statusHtml = isOwn ? renderStatusIcon(msg.status, msg, currentUsername, partnerUsername) : "";
+    const statusHtml = isOwn ? renderStatusIcon(msg.status, msg, partnerUsername) : "";
     const retryBtn =
       msg.status === "failed" && msg.localId
         ? `<button class="retry-btn" data-local-id="${msg.localId}">আবার চেষ্টা</button>`
