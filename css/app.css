@@ -401,6 +401,38 @@ html, body {
   border: 2px solid rgba(255, 255, 255, 0.25);
 }
 
+.load-older-btn {
+  display: block;
+  width: calc(100% - 16px);
+  margin: 8px auto 4px;
+  padding: 0.45rem 0.75rem;
+  border: 1px dashed rgba(7, 94, 84, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #075e54;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.load-older-btn:hover:not(:disabled) {
+  background: #f0faf8;
+  border-color: rgba(7, 94, 84, 0.55);
+}
+
+.load-older-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.msg-image-stripped {
+  font-size: 0.8rem;
+  color: #667781;
+  padding: 0.35rem 0;
+  font-style: italic;
+}
+
 .date-separator {
   text-align: center;
   margin: 0.85rem 0 0.65rem;

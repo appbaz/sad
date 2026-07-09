@@ -12,6 +12,10 @@ import {
   serverTimestamp,
   writeBatch,
   enableIndexedDbPersistence,
+  limitToLast,
+  startAfter,
+  limit,
+  Timestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { db } from "../firebase.js";
 import { getCurrentUser } from "../auth.js";
@@ -21,7 +25,7 @@ import {
   removeFromOutbox,
   updateOutboxMessage,
 } from "../store.js";
-import { MAX_MESSAGE_LENGTH } from "../constants.js";
+import { MAX_MESSAGE_LENGTH, MESSAGES_PAGE_SIZE } from "../constants.js";
 import {
   MESSAGE_TYPES,
   normalizeMessage,
@@ -53,9 +57,12 @@ export function listenRoomMeta(roomId, callback) {
       const data = snap.exists() ? snap.data() : {};
       callback({
         clearedAt: data.clearedAt?.toMillis?.() ?? data.clearedAt ?? 0,
+        retentionDays: data.retentionDays || null,
+        imageStripDays: data.imageStripDays || null,
+        lastMaintenanceAt: data.lastMaintenanceAt?.toMillis?.() ?? data.lastMaintenanceAt ?? 0,
       });
     },
-    () => callback({ clearedAt: 0 })
+    () => callback({ clearedAt: 0, retentionDays: null, imageStripDays: null, lastMaintenanceAt: 0 })
   );
 }
 
@@ -215,25 +222,69 @@ export async function retryOutboxMessage(item) {
   }
 }
 
-export function listenToMessages(roomId, callback, clearedAt = 0) {
+export function listenToRecentMessages(roomId, callback, clearedAt = 0) {
   const q = query(
     collection(db, "rooms", roomId, "messages"),
-    orderBy("createdAt", "asc")
+    orderBy("createdAt", "desc"),
+    limitToLast(MESSAGES_PAGE_SIZE)
   );
 
   return onSnapshot(
     q,
     (snap) => {
-      const messages = snap.docs
+      const recent = snap.docs
         .map((d) => normalizeMessage({ id: d.id, ...d.data() }))
-        .filter((m) => isMessageVisible(m, clearedAt));
-      callback(messages);
+        .filter((m) => isMessageVisible(m, clearedAt))
+        .reverse();
+      callback({
+        recent,
+        hasMoreHint: snap.docs.length >= MESSAGES_PAGE_SIZE,
+      });
     },
     (err) => {
       console.error("Message listener error:", err);
       callback(null, err);
     }
   );
+}
+
+export async function fetchOlderMessages(roomId, oldestCreatedAtMs, clearedAt = 0) {
+  if (!roomId || !oldestCreatedAtMs) {
+    return { messages: [], hasMore: false };
+  }
+
+  const q = query(
+    collection(db, "rooms", roomId, "messages"),
+    orderBy("createdAt", "desc"),
+    startAfter(Timestamp.fromMillis(oldestCreatedAtMs)),
+    limit(MESSAGES_PAGE_SIZE)
+  );
+
+  const snap = await getDocs(q);
+  const messages = snap.docs
+    .map((d) => normalizeMessage({ id: d.id, ...d.data() }))
+    .filter((m) => isMessageVisible(m, clearedAt))
+    .reverse();
+
+  return {
+    messages,
+    hasMore: snap.docs.length >= MESSAGES_PAGE_SIZE,
+  };
+}
+
+/** @deprecated use listenToRecentMessages */
+export function listenToMessages(roomId, callback, clearedAt = 0) {
+  return listenToRecentMessages(roomId, (result, err) => {
+    if (err) {
+      callback(null, err);
+      return;
+    }
+    if (result === null) {
+      callback(null);
+      return;
+    }
+    callback(result.recent);
+  }, clearedAt);
 }
 
 export async function markMessageRead(roomId, messageId) {

@@ -38,7 +38,8 @@ import {
   enableOfflinePersistence,
   sendMessage,
   sendImageMessage,
-  listenToMessages,
+  listenToRecentMessages,
+  fetchOlderMessages,
   listenRoomMeta,
   listenToRoomUsers,
   markMessagesAcknowledged,
@@ -48,6 +49,7 @@ import {
   clearAllMessages,
   searchMessages,
   resetMarkReadCache,
+  runRoomMaintenance,
 } from "./chat.js";
 import { listenPresence, setTyping, stopTyping, isPartnerTyping } from "./messaging/presence.js";
 import { compressImage, prepareImageForMessage } from "./messaging/media.js";
@@ -110,7 +112,7 @@ import {
   playSentConfirm,
 } from "./sounds.js";
 import { formatLastSeen } from "./ui/format.js";
-import { normalizeRoomCode, validateRoomCode, CHAT_IDLE_MS, APP_NAME, TYPING_DEBOUNCE_MS, MESSAGE_DELETE_WINDOW_MS } from "./constants.js";
+import { normalizeRoomCode, validateRoomCode, CHAT_IDLE_MS, APP_NAME, TYPING_DEBOUNCE_MS, MESSAGE_DELETE_WINDOW_MS, HEARTBEAT_INTERVAL_MS, ACK_DEBOUNCE_MS } from "./constants.js";
 import { formatFirebaseError } from "./errors.js";
 
 let currentRoomId = null;
@@ -148,6 +150,12 @@ let unsubscribeSession = null;
 let localSessionId = null;
 let isRemoteLoggingOut = false;
 let loginMessageBaseline = 0;
+let olderMessages = [];
+let hasMoreOlder = false;
+let loadingOlder = false;
+let roomMeta = { clearedAt: 0, retentionDays: null, imageStripDays: null, lastMaintenanceAt: 0 };
+let recentMessages = [];
+let scrollToBottomNext = false;
 
 function pauseChatUi() {
   if (!sessionStarted) return;
@@ -234,6 +242,9 @@ async function init() {
   });
   document.getElementById("searchMessagesBtn")?.addEventListener("click", handleOpenSearch);
   document.getElementById("clearChatBtn")?.addEventListener("click", handleClearChat);
+  document.getElementById("loadOlderBtn")?.addEventListener("click", () => {
+    handleLoadOlderMessages().catch(() => {});
+  });
   document.addEventListener("click", () => toggleRoomMenu(false));
 
   onRouteChange(async (route) => {
@@ -660,7 +671,60 @@ function buildReplyPayload(msg) {
   };
 }
 
-let scrollToBottomNext = false;
+function mergeDisplayedMessages() {
+  const idSet = new Set();
+  const merged = [];
+  for (const m of [...olderMessages, ...recentMessages]) {
+    if (idSet.has(m.id)) continue;
+    idSet.add(m.id);
+    merged.push(m);
+  }
+  merged.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  return merged;
+}
+
+async function handleLoadOlderMessages() {
+  if (!currentRoomId || loadingOlder || !hasMoreOlder || !currentMessages.length) return;
+  const oldest = currentMessages[0];
+  if (!oldest?.createdAt) return;
+
+  const container = document.getElementById("messages");
+  const prevHeight = container?.scrollHeight || 0;
+
+  loadingOlder = true;
+  updateLoadOlderButton();
+  try {
+    const { messages, hasMore } = await fetchOlderMessages(
+      currentRoomId,
+      oldest.createdAt,
+      roomClearedAt
+    );
+    const existingIds = new Set([...olderMessages, ...recentMessages].map((m) => m.id));
+    const unique = messages.filter((m) => !existingIds.has(m.id));
+    olderMessages = [...unique, ...olderMessages];
+    hasMoreOlder = hasMore;
+    currentMessages = mergeDisplayedMessages();
+    refreshMessageUI();
+    if (container) {
+      requestAnimationFrame(() => {
+        container.scrollTop = container.scrollHeight - prevHeight;
+      });
+    }
+  } catch (err) {
+    showToast(formatFirebaseError(err));
+  } finally {
+    loadingOlder = false;
+    updateLoadOlderButton();
+  }
+}
+
+function updateLoadOlderButton() {
+  const btn = document.getElementById("loadOlderBtn");
+  if (!btn) return;
+  btn.classList.toggle("d-none", !hasMoreOlder);
+  btn.disabled = loadingOlder;
+  btn.textContent = loadingOlder ? "লোড হচ্ছে…" : "আগের মেসেজ দেখুন";
+}
 
 function refreshMessageUI({ scrollPolicy = "if-near" } = {}) {
   if (renderUiRaf) cancelAnimationFrame(renderUiRaf);
@@ -693,7 +757,11 @@ function refreshMessageUI({ scrollPolicy = "if-near" } = {}) {
       getMessage: (id) => allMsgs.find((m) => m.id === id),
       scrollPolicy: policy,
       newMessagesSince: loginMessageBaseline,
+      hasMoreOlder,
+      onLoadOlder: handleLoadOlderMessages,
     }, partner);
+
+    updateLoadOlderButton();
 
     renderPinnedBar(getPinnedMessage(), async (msgId) => {
       try {
@@ -711,7 +779,7 @@ function scheduleMessageAck() {
   if (ackTimer) clearTimeout(ackTimer);
   ackTimer = setTimeout(() => {
     markMessagesAcknowledged(currentRoomId, currentMessages, me.username).catch(() => {});
-  }, 900);
+  }, ACK_DEBOUNCE_MS);
 }
 
 function handleInputChange(e) {
@@ -774,7 +842,8 @@ async function handleImageSelect(e) {
   try {
     setUploadProgress(true, 0);
     const { imageUrl, width, height } = await prepareImageForMessage(file, (p) =>
-      setUploadProgress(true, p)
+      setUploadProgress(true, p),
+      currentRoomId
     );
     const caption = document.getElementById("messageInput")?.value?.trim() || "";
     const replyTo = buildReplyPayload(replyToMessage);
@@ -970,11 +1039,12 @@ function startChatSession() {
   });
   unsubscribeMeta = listenRoomMeta(currentRoomId, (meta) => {
     roomClearedAt = meta.clearedAt || 0;
+    roomMeta = meta;
   });
   heartbeatTimer = setInterval(async () => {
     const result = await sendHeartbeat();
     if (result?.revoked) handleRemoteLogout().catch(() => {});
-  }, 30000);
+  }, HEARTBEAT_INTERVAL_MS);
   sendHeartbeat().then((result) => {
     if (result?.revoked) handleRemoteLogout().catch(() => {});
   });
@@ -1007,6 +1077,9 @@ function stopChatSession() {
   messagesListenerRoomId = null;
   localSessionId = null;
   loginMessageBaseline = 0;
+  olderMessages = [];
+  recentMessages = [];
+  hasMoreOlder = false;
   if (unsubscribeSession) { unsubscribeSession(); unsubscribeSession = null; }
   if (unsubscribeMessages) { unsubscribeMessages(); unsubscribeMessages = null; }
   if (unsubscribeUsers) { unsubscribeUsers(); unsubscribeUsers = null; }
@@ -1033,6 +1106,10 @@ async function openPartnerChat(partner) {
   if (unsubscribeMessages) unsubscribeMessages();
 
   loginMessageBaseline = Date.now();
+  olderMessages = [];
+  recentMessages = [];
+  hasMoreOlder = false;
+  loadingOlder = false;
   pendingLocalMessages = [];
   knownMessageIds = new Set();
   messagesInitialized = false;
@@ -1040,27 +1117,34 @@ async function openPartnerChat(partner) {
   lastPartnerStatusText = "";
   messagesListenerRoomId = currentRoomId;
 
-  unsubscribeMessages = listenToMessages(currentRoomId, async (messages, err) => {
+  unsubscribeMessages = listenToRecentMessages(currentRoomId, async (result, err) => {
     if (err) {
       showToast("মেসেজ লোড করা যায়নি — পেজ রিফ্রেশ করুন");
       return;
     }
-    if (messages === null) return;
+    if (result === null) return;
 
+    const { recent, hasMoreHint } = result;
     const isInitialHistoryLoad = !messagesInitialized;
 
     if (!messagesInitialized) {
-      messages.forEach((m) => knownMessageIds.add(m.id));
+      recent.forEach((m) => knownMessageIds.add(m.id));
       messagesInitialized = true;
+      hasMoreOlder = hasMoreHint;
+      const memberIds = getMembers().map((m) => m.id);
+      if (memberIds.length) {
+        runRoomMaintenance(currentRoomId, memberIds, roomMeta).catch(() => {});
+      }
     } else {
-      const incoming = messages.filter(
+      const incoming = recent.filter(
         (m) => !knownMessageIds.has(m.id) && m.senderId !== me.username
       );
       if (incoming.length > 0) playReceive();
-      messages.forEach((m) => knownMessageIds.add(m.id));
+      recent.forEach((m) => knownMessageIds.add(m.id));
     }
 
-    currentMessages = messages;
+    recentMessages = recent;
+    currentMessages = mergeDisplayedMessages();
     const pending = await getPendingMessages();
     pendingLocalMessages = pending
       .filter((p) => p.roomId === currentRoomId)
@@ -1078,7 +1162,7 @@ async function openPartnerChat(partner) {
         pending: true,
       }));
 
-    messages.forEach((m) => {
+    recent.forEach((m) => {
       if (m.localId) {
         pendingLocalMessages = pendingLocalMessages.filter((p) => p.localId !== m.localId);
       }

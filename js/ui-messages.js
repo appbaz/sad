@@ -101,6 +101,9 @@ export function downloadImage(url, filename) {
 }
 
 function renderImageContent(msg) {
+  if (msg.imageStripped || (!msg.imageUrl && msg.type === MESSAGE_TYPES.IMAGE)) {
+    return `<div class="msg-image-stripped"><em>ছবি মুছে ফেলা হয়েছে (স্টোরেজ সাশ্রয়)</em></div>`;
+  }
   if (!msg.imageUrl) return "";
   const alt = escapeHtml(msg.text || "ছবি");
   const filename = escapeHtml(imageDownloadName(msg));

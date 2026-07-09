@@ -1,11 +1,18 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+
+    function isRoomMember(roomId) {
+      return request.auth != null
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.roomId == roomId;
+    }
+
     match /rooms/{roomId}/images/{fileName} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
+      allow read: if isRoomMember(roomId);
+      allow write: if isRoomMember(roomId)
         && request.resource.size < 5 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
+      allow delete: if isRoomMember(roomId);
     }
   }
 }

@@ -3,6 +3,8 @@ export {
   sendMessage,
   sendImageMessage,
   listenToMessages,
+  listenToRecentMessages,
+  fetchOlderMessages,
   listenRoomMeta,
   markMessagesRead,
   markMessagesDelivered,
@@ -17,6 +19,8 @@ export {
   retryOutboxMessage,
   resetMarkReadCache,
 } from "./messaging/messages.js";
+
+export { runRoomMaintenance, isSafeToPurge } from "./messaging/purge.js";
 
 export { listenRoomUsers } from "./messaging/presence.js";
 

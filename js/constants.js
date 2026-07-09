@@ -13,7 +13,14 @@ export const ADMIN_SESSION_MS = 24 * 60 * 60 * 1000;
 export const ONLINE_THRESHOLD_MS = 90 * 1000;
 export const TYPING_TIMEOUT_MS = 3000;
 export const TYPING_STALE_MS = 30000;
-export const TYPING_DEBOUNCE_MS = 300;
+export const TYPING_DEBOUNCE_MS = 500;
+export const HEARTBEAT_INTERVAL_MS = 2 * 60 * 1000;
+export const ACK_DEBOUNCE_MS = 2500;
+export const MESSAGES_PAGE_SIZE = 80;
+export const RETENTION_DAYS_DEFAULT = 30;
+export const IMAGE_STRIP_DAYS_DEFAULT = 7;
+export const MAINTENANCE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+export const PURGE_BATCH_SIZE = 200;
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export const MAX_IMAGE_DIMENSION = 960;
 /** Firestore doc সীমা ১ MB — base64 ছবি ~৪৫০ KB পর্যন্ত */

@@ -42,6 +42,7 @@ export function normalizeMessage(doc) {
     reactions: data.reactions || {},
     pinned: data.pinned === true,
     pinnedAt: normalizeTimestamp(data.pinnedAt) || null,
+    imageStripped: data.imageStripped === true,
     localId: data.localId || null,
     status: data.status || "sent",
   };
@@ -72,7 +73,10 @@ export function getMessagePreviewText(msg, viewerUsername = null) {
     return "মেসেজ মুছে ফেলা হয়েছে";
   }
   if (isMessageDeleted(msg)) return "মেসেজ মুছে ফেলা হয়েছে";
-  if (msg.type === MESSAGE_TYPES.IMAGE) return msg.text?.trim() || "ছবি";
+  if (msg.type === MESSAGE_TYPES.IMAGE) {
+    if (msg.imageStripped) return msg.text?.trim() || "ছবি (মুছে ফেলা হয়েছে)";
+    return msg.text?.trim() || "ছবি";
+  }
   if (msg.type === MESSAGE_TYPES.LINK) return msg.text?.trim() || msg.linkUrl || "লিংক";
   return msg.text || "";
 }
