@@ -187,22 +187,25 @@ function buildAllMessages(messages, pendingLocal) {
   ].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 }
 
-function bodyKey(all, currentUsername) {
-  return all
-    .map((m) =>
-      [
-        m.id,
-        m.status,
-        m.text,
-        m.type,
-        m.deletedAt,
-        m.hiddenFor?.[currentUsername] ? 1 : 0,
-        m.pinned,
-        JSON.stringify(m.reactions || {}),
-        m.imageUrl ? 1 : 0,
-      ].join(":")
-    )
-    .join("|");
+function bodyKey(all, currentUsername, currentUid, newMessagesSince = 0) {
+  const dividerIdx = getNewDividerBeforeIndex(all, newMessagesSince, currentUsername, currentUid);
+  return (
+    all
+      .map((m) =>
+        [
+          m.id,
+          m.status,
+          m.text,
+          m.type,
+          m.deletedAt,
+          m.hiddenFor?.[currentUsername] ? 1 : 0,
+          m.pinned,
+          JSON.stringify(m.reactions || {}),
+          m.imageUrl ? 1 : 0,
+        ].join(":")
+      )
+      .join("|") + `|nd:${dividerIdx}:${newMessagesSince || 0}`
+  );
 }
 
 function ackKey(all) {
@@ -211,7 +214,55 @@ function ackKey(all) {
     .join("|");
 }
 
-function buildMessageRowHtml(msg, index, all, currentUsername, currentUid, partner, partnerUsername, animate) {
+function getNewDividerBeforeIndex(all, baselineTs, currentUsername, currentUid) {
+  if (!baselineTs) return -1;
+  let hasOlder = false;
+  for (let i = 0; i < all.length; i++) {
+    const msg = all[i];
+    const ts = msg.createdAt?.toMillis?.() ?? msg.createdAt ?? 0;
+    const incoming = !isOwnMessage(msg, currentUsername, currentUid);
+    if (ts <= baselineTs) {
+      hasOlder = true;
+      continue;
+    }
+    if (incoming && hasOlder) return i;
+  }
+  return -1;
+}
+
+function renderNewMessagesSeparator() {
+  return `<div class="new-messages-separator" role="separator" aria-label="নতুন মেসেজ"><span>নতুন মেসেজ</span></div>`;
+}
+
+function buildMessagesHtml(all, startIndex, currentUsername, currentUid, partner, partnerUsername, animate, newMessagesSince, initialLastDate = "") {
+  let html = "";
+  let lastDate = initialLastDate;
+  const dividerIdx = getNewDividerBeforeIndex(all, newMessagesSince, currentUsername, currentUid);
+
+  for (let index = startIndex; index < all.length; index++) {
+    const msg = all[index];
+    if (index === dividerIdx) html += renderNewMessagesSeparator();
+
+    const ts = msg.createdAt?.toMillis?.() ?? msg.createdAt ?? Date.now();
+    const dateLabel = formatDateSeparator(ts);
+    if (dateLabel && dateLabel !== lastDate) {
+      html += `<div class="date-separator"><span>${dateLabel}</span></div>`;
+      lastDate = dateLabel;
+    }
+
+    const isIncomingNew =
+      Boolean(newMessagesSince) &&
+      ts > newMessagesSince &&
+      !isOwnMessage(msg, currentUsername, currentUid);
+
+    html += buildMessageRowHtml(
+      msg, index, all, currentUsername, currentUid, partner, partnerUsername, animate, isIncomingNew
+    );
+  }
+
+  return { html, lastDate };
+}
+function buildMessageRowHtml(msg, index, all, currentUsername, currentUid, partner, partnerUsername, animate, isIncomingNew = false) {
   const ts = msg.createdAt?.toMillis?.() ?? msg.createdAt ?? Date.now();
   const isOwn = isOwnMessage(msg, currentUsername, currentUid);
   const prevOwn = index > 0 ? isOwnMessage(all[index - 1], currentUsername, currentUid) : null;
@@ -224,6 +275,7 @@ function buildMessageRowHtml(msg, index, all, currentUsername, currentUid, partn
   const failedClass = msg.status === "failed" ? "failed" : "";
   const pinnedClass = msg.pinned ? "msg-pinned" : "";
   const animClass = animate ? " msg-row-new" : " msg-row-stable";
+  const incomingNewClass = isIncomingNew ? " msg-row-incoming-new" : "";
 
   const partnerAvatarHtml = partner
     ? `<div class="msg-avatar avatar avatar-sm ${getAvatarColorClass(partner.id)}" aria-hidden="true">${getInitial(partner.name)}</div>`
@@ -237,7 +289,7 @@ function buildMessageRowHtml(msg, index, all, currentUsername, currentUid, partn
   const avatarSlot = isOwn ? "" : isLast ? partnerAvatarHtml : `<div class="msg-avatar msg-avatar-spacer" aria-hidden="true"></div>`;
 
   return `
-    <div class="msg-row ${rowClass} ${groupClass} ${pinnedClass}${animClass}" data-msg-id="${msg.id}">
+    <div class="msg-row ${rowClass} ${groupClass} ${pinnedClass}${animClass}${incomingNewClass}" data-msg-id="${msg.id}">
       ${avatarSlot}
       <div class="msg-bubble ${pendingClass} ${failedClass}" data-msg-id="${msg.id}">
         <div class="msg-body">
@@ -400,7 +452,7 @@ export function renderMessages(messages, currentUsername, currentUid, pendingLoc
     return;
   }
 
-  const newBodyKey = bodyKey(all, currentUsername);
+  const newBodyKey = bodyKey(all, currentUsername, currentUid, handlers.newMessagesSince || 0);
   const newAckKey = ackKey(all);
   const scrollPolicy = handlers.scrollPolicy || "if-near";
 
@@ -420,25 +472,23 @@ export function renderMessages(messages, currentUsername, currentUid, pendingLoc
     renderCache.ids.every((id, i) => all[i]?.id === id);
 
   if (canAppend) {
-    let html = "";
     let lastDate = "";
     const existingDates = [...container.querySelectorAll(".date-separator span")].map((el) => el.textContent);
     if (existingDates.length) lastDate = existingDates[existingDates.length - 1];
 
-    for (let index = renderCache.ids.length; index < all.length; index++) {
-      const msg = all[index];
-      const ts = msg.createdAt?.toMillis?.() ?? msg.createdAt ?? Date.now();
-      const dateLabel = formatDateSeparator(ts);
-      if (dateLabel && dateLabel !== lastDate) {
-        html += `<div class="date-separator"><span>${dateLabel}</span></div>`;
-        lastDate = dateLabel;
-      }
-      html += buildMessageRowHtml(
-        msg, index, all, currentUsername, currentUid, partner, partnerUsername, true
-      );
-    }
+    const chunk = buildMessagesHtml(
+      all,
+      renderCache.ids.length,
+      currentUsername,
+      currentUid,
+      partner,
+      partnerUsername,
+      true,
+      handlers.newMessagesSince || 0,
+      lastDate
+    );
 
-    container.insertAdjacentHTML("beforeend", html);
+    container.insertAdjacentHTML("beforeend", chunk.html);
     renderCache.bodyKey = newBodyKey;
     renderCache.ackKey = newAckKey;
     renderCache.ids = all.map((m) => m.id);
@@ -447,21 +497,18 @@ export function renderMessages(messages, currentUsername, currentUid, pendingLoc
     return;
   }
 
-  let html = "";
-  let lastDate = "";
-  all.forEach((msg, index) => {
-    const ts = msg.createdAt?.toMillis?.() ?? msg.createdAt ?? Date.now();
-    const dateLabel = formatDateSeparator(ts);
-    if (dateLabel && dateLabel !== lastDate) {
-      html += `<div class="date-separator"><span>${dateLabel}</span></div>`;
-      lastDate = dateLabel;
-    }
-    html += buildMessageRowHtml(
-      msg, index, all, currentUsername, currentUid, partner, partnerUsername, false
-    );
-  });
+  const chunk = buildMessagesHtml(
+    all,
+    0,
+    currentUsername,
+    currentUid,
+    partner,
+    partnerUsername,
+    false,
+    handlers.newMessagesSince || 0
+  );
 
-  container.innerHTML = html;
+  container.innerHTML = chunk.html;
   renderCache.bodyKey = newBodyKey;
   renderCache.ackKey = newAckKey;
   renderCache.ids = all.map((m) => m.id);

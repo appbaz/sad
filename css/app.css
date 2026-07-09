@@ -420,6 +420,44 @@ html, body {
   text-transform: uppercase;
 }
 
+.new-messages-separator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0.9rem 0 0.75rem;
+  padding: 0 8px;
+  animation: msgSlideIn 0.35s var(--ease-out-expo);
+}
+
+.new-messages-separator::before,
+.new-messages-separator::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(7, 94, 84, 0.35), transparent);
+}
+
+.new-messages-separator span {
+  display: inline-block;
+  background: linear-gradient(135deg, #075e54, #128c7e);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(7, 94, 84, 0.25);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.msg-row.msg-row-incoming-new .msg-bubble {
+  box-shadow: 0 0 0 1.5px rgba(7, 94, 84, 0.22), var(--shadow-bubble);
+}
+
+.msg-row.msg-row-incoming-new.other .msg-bubble {
+  background: linear-gradient(180deg, #fff 0%, #f0faf8 100%);
+}
+
 .msg-row {
   display: flex;
   width: 100%;

@@ -147,6 +147,7 @@ let currentRouteView = parseRoute().view;
 let unsubscribeSession = null;
 let localSessionId = null;
 let isRemoteLoggingOut = false;
+let loginMessageBaseline = 0;
 
 function pauseChatUi() {
   if (!sessionStarted) return;
@@ -691,6 +692,7 @@ function refreshMessageUI({ scrollPolicy = "if-near" } = {}) {
       currentUsername: me.username,
       getMessage: (id) => allMsgs.find((m) => m.id === id),
       scrollPolicy: policy,
+      newMessagesSince: loginMessageBaseline,
     }, partner);
 
     renderPinnedBar(getPinnedMessage(), async (msgId) => {
@@ -1004,6 +1006,7 @@ function stopChatSession() {
   showReplyPreview(null);
   messagesListenerRoomId = null;
   localSessionId = null;
+  loginMessageBaseline = 0;
   if (unsubscribeSession) { unsubscribeSession(); unsubscribeSession = null; }
   if (unsubscribeMessages) { unsubscribeMessages(); unsubscribeMessages = null; }
   if (unsubscribeUsers) { unsubscribeUsers(); unsubscribeUsers = null; }
@@ -1029,6 +1032,7 @@ async function openPartnerChat(partner) {
 
   if (unsubscribeMessages) unsubscribeMessages();
 
+  loginMessageBaseline = Date.now();
   pendingLocalMessages = [];
   knownMessageIds = new Set();
   messagesInitialized = false;
