@@ -17,11 +17,12 @@ import {
   clearDeviceSession,
   touchDeviceSession,
 } from "./store.js";
+import { claimMemberSession, validateDeviceSession } from "./session.js";
 
 let currentUserDoc = null;
 let lastAuthUid = null;
 
-async function attachDeviceSession(uid, roomId, username) {
+async function attachDeviceSession(uid, roomId, username, sessionId) {
   const memberSnap = await getDoc(doc(db, "rooms", roomId, "members", username));
   if (!memberSnap.exists()) {
     throw new Error("সদস্য পাওয়া যায়নি");
@@ -37,6 +38,7 @@ async function attachDeviceSession(uid, roomId, username) {
       username,
       displayName: userMeta.name,
       role: "chat",
+      sessionId,
       isOnline: true,
       lastSeen: serverTimestamp(),
     },
@@ -44,7 +46,7 @@ async function attachDeviceSession(uid, roomId, username) {
   );
 
   const userSnap = await getDoc(userRef);
-  currentUserDoc = { uid, roomId, ...userSnap.data() };
+  currentUserDoc = { uid, roomId, sessionId, ...userSnap.data() };
   return currentUserDoc;
 }
 
@@ -53,10 +55,12 @@ export async function enterChatAsMember(roomId, username) {
 
   const cred = await signInAnonymously(auth);
   try {
-    const user = await attachDeviceSession(cred.user.uid, roomId, username);
+    const sessionId = await claimMemberSession(roomId, username);
+    const user = await attachDeviceSession(cred.user.uid, roomId, username, sessionId);
     await saveDeviceSession({
       roomId,
       username,
+      sessionId,
       lastActiveAt: Date.now(),
     });
     return user;
@@ -127,14 +131,23 @@ export function getCurrentUser() {
 }
 
 export async function sendHeartbeat() {
-  if (!auth.currentUser) return;
+  if (!auth.currentUser) return { revoked: false };
+  const me = currentUserDoc;
+  if (me?.roomId && me?.username) {
+    const valid = await validateDeviceSession(me.roomId, me.username);
+    if (!valid) return { revoked: true };
+  }
   await setDoc(
     doc(db, "users", auth.currentUser.uid),
     { isOnline: true, lastSeen: serverTimestamp() },
     { merge: true }
   ).catch(() => {});
   await touchDeviceSession().catch(() => {});
+  return { revoked: false };
 }
+
+export { validateDeviceSession } from "./session.js";
+export { listenMemberSession } from "./session.js";
 
 export function isUserRecentlyActive(lastSeen, thresholdMs = ONLINE_THRESHOLD_MS) {
   if (!lastSeen) return false;

@@ -1,11 +1,10 @@
-import { collection, doc, getDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { db } from "./firebase.js";
 import { sha256Hex } from "./crypto-utils.js";
-import { ONLINE_THRESHOLD_MS, normalizeUserId, validateUserId } from "./constants.js";
+import { normalizeUserId, validateUserId } from "./constants.js";
 import { getRoom } from "./rooms.js";
 import { fetchMembersOnce, getMembers } from "./users.js";
-import { getDeviceSession } from "./store.js";
-import { ensureAnonymousAuth, isUserRecentlyActive } from "./auth.js";
+import { ensureAnonymousAuth } from "./auth.js";
 
 export async function findMemberByPassword(roomId, password) {
   const room = await getRoom(roomId);
@@ -38,20 +37,8 @@ export async function findMemberByPassword(roomId, password) {
 }
 
 export async function verifyRoomLogin(roomId, password) {
-  const member = await findMemberByPassword(roomId, password);
-  const username = member.id;
-
   await ensureAnonymousAuth();
-
-  const deviceSession = await getDeviceSession();
-  if (!(deviceSession?.roomId === roomId && deviceSession?.username === username)) {
-    const onlineUsernames = await getOnlineUsernames(roomId);
-    if (onlineUsernames.has(username)) {
-      throw new Error("এই অ্যাকাউন্ট ইতিমধ্যে অনলাইন — আগে লগআউট করুন বা অপেক্ষা করুন");
-    }
-  }
-
-  return member;
+  return findMemberByPassword(roomId, password);
 }
 
 export async function verifyMemberPassword(roomId, username, password) {
@@ -77,18 +64,6 @@ export async function verifyMemberPassword(roomId, username, password) {
   return member;
 }
 
-async function getOnlineUsernames(roomId) {
-  const snap = await getDocs(query(collection(db, "users"), where("roomId", "==", roomId)));
-  const online = new Set();
-  snap.docs.forEach((d) => {
-    const data = d.data();
-    if (data.isOnline && isUserRecentlyActive(data.lastSeen?.toMillis?.() ?? data.lastSeen, ONLINE_THRESHOLD_MS)) {
-      online.add(data.username);
-    }
-  });
-  return online;
-}
-
 export async function resolveRoomMember(roomId, rawUsername) {
   await ensureAnonymousAuth();
 
@@ -100,16 +75,6 @@ export async function resolveRoomMember(roomId, rawUsername) {
   const member = getMembers().find((m) => m.id === username);
   if (!member) {
     throw new Error("এই সদস্য এই রুমে নেই");
-  }
-
-  const deviceSession = await getDeviceSession();
-  if (deviceSession?.roomId === roomId && deviceSession?.username === username) {
-    return username;
-  }
-
-  const onlineUsernames = await getOnlineUsernames(roomId);
-  if (onlineUsernames.has(username)) {
-    throw new Error("এই অ্যাকাউন্ট ইতিমধ্যে অনলাইন — আগে লগআউট করুন বা অপেক্ষা করুন");
   }
 
   return username;

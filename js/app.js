@@ -18,6 +18,8 @@ import {
   markDeviceOffline,
   isUsernameOnline,
   ensureAnonymousAuth,
+  validateDeviceSession,
+  listenMemberSession,
 } from "./auth.js";
 import { loginAdmin, logoutAdmin, isAdminLoggedIn, touchAdminSession } from "./admin.js";
 import { verifyRoomLogin } from "./room-gate.js";
@@ -30,7 +32,7 @@ import {
   isRoomFull,
 } from "./rooms.js";
 import { onRouteChange, navigateToAdmin, navigateToHome, parseRoute } from "./router.js";
-import { getPendingMessages, clearRoomSession } from "./store.js";
+import { getPendingMessages, clearRoomSession, getDeviceSession } from "./store.js";
 import {
   enableOfflinePersistence,
   sendMessage,
@@ -141,6 +143,9 @@ let renderUiRaf = null;
 let lastPartnerStatusText = "";
 let messagesListenerRoomId = null;
 let currentRouteView = parseRoute().view;
+let unsubscribeSession = null;
+let localSessionId = null;
+let isRemoteLoggingOut = false;
 
 function pauseChatUi() {
   if (!sessionStarted) return;
@@ -261,6 +266,13 @@ async function init() {
 
     if (user.roomId === currentRoomId) {
       if (!sessionStarted) {
+        const valid = await validateDeviceSession(user.roomId, user.username);
+        if (!valid) {
+          setChatAuthenticated(false);
+          await logout();
+          if (!isAdminRoute()) showToast("অন্য ডিভাইসে লগইন হয়েছে");
+          return;
+        }
         await fetchMembersOnce(user.roomId).catch(() => {});
         enterChat(user);
       }
@@ -333,6 +345,13 @@ async function bootstrapChatLogin(prefillRoomId) {
 
   const user = getCurrentUser();
   if (user?.roomId) {
+    const valid = await validateDeviceSession(user.roomId, user.username);
+    if (!valid) {
+      setChatAuthenticated(false);
+      await logout();
+      showToast("অন্য ডিভাইসে লগইন হয়েছে");
+      return;
+    }
     currentRoomId = user.roomId;
     await fetchMembersOnce(user.roomId);
     enterChat(user);
@@ -524,7 +543,7 @@ async function startChatFromLogin(roomId, password) {
     setChatAuthenticated(true);
     enterChat(user);
     playLogin();
-    showToast("সংযোগ স্থাপিত হয়েছে", "success");
+    showToast("সংযোগ স্থাপিত হয়েছে — অন্য ডিভাইস থেকে লগআউট করা হয়েছে", "success");
   } catch (err) {
     console.error("Login failed:", err);
     playError();
@@ -893,9 +912,33 @@ async function handleRetry(localId) {
   }
 }
 
+async function handleRemoteLogout() {
+  if (isRemoteLoggingOut) return;
+  isRemoteLoggingOut = true;
+  try {
+    showToast("অন্য ডিভাইসে লগইন হয়েছে — এই ডিভাইস থেকে লগআউট হয়েছে");
+    setChatAuthenticated(false);
+    await logout();
+    exitChat();
+    if (!isAdminRoute()) navigateToHome();
+  } finally {
+    isRemoteLoggingOut = false;
+  }
+}
+
 function startChatSession() {
   const me = getCurrentUser();
   if (!me || !currentRoomId) return;
+
+  getDeviceSession().then((deviceSession) => {
+    localSessionId = deviceSession?.sessionId || null;
+    if (!localSessionId || unsubscribeSession) return;
+
+    unsubscribeSession = listenMemberSession(currentRoomId, me.username, (data) => {
+      if (!data.activeSessionId || data.activeSessionId === localSessionId) return;
+      handleRemoteLogout().catch(() => {});
+    });
+  });
 
   unsubscribeMembers = listenToMembers(currentRoomId, onMembersUpdated);
   unsubscribeUsers = listenToRoomUsers(currentRoomId, (users) => {
@@ -909,8 +952,13 @@ function startChatSession() {
   unsubscribeMeta = listenRoomMeta(currentRoomId, (meta) => {
     roomClearedAt = meta.clearedAt || 0;
   });
-  heartbeatTimer = setInterval(sendHeartbeat, 30000);
-  sendHeartbeat();
+  heartbeatTimer = setInterval(async () => {
+    const result = await sendHeartbeat();
+    if (result?.revoked) handleRemoteLogout().catch(() => {});
+  }, 30000);
+  sendHeartbeat().then((result) => {
+    if (result?.revoked) handleRemoteLogout().catch(() => {});
+  });
   resetChatIdleTimer();
 }
 
@@ -938,6 +986,8 @@ function stopChatSession() {
   replyToMessage = null;
   showReplyPreview(null);
   messagesListenerRoomId = null;
+  localSessionId = null;
+  if (unsubscribeSession) { unsubscribeSession(); unsubscribeSession = null; }
   if (unsubscribeMessages) { unsubscribeMessages(); unsubscribeMessages = null; }
   if (unsubscribeUsers) { unsubscribeUsers(); unsubscribeUsers = null; }
   if (unsubscribeMembers) { unsubscribeMembers(); unsubscribeMembers = null; }
@@ -1035,7 +1085,9 @@ function initDeviceLifecycle() {
 
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && getCurrentUser() && sessionStarted) {
-      sendHeartbeat();
+      sendHeartbeat().then((result) => {
+        if (result?.revoked) handleRemoteLogout().catch(() => {});
+      });
       resetChatIdleTimer();
     }
   });
