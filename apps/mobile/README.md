@@ -14,13 +14,17 @@ Uses a **dedicated Firebase project** (not the PWA `chatapp-1dfee`) so web and A
 flutter run --dart-define=MEDIA_WORKER_URL=https://YOUR_WORKER.workers.dev
 ```
 
-4. Run:
+4. Create a room + `m1`/`m2` in the **mobile** Firestore (not PWA): see [docs/SETUP.md §6](../../docs/SETUP.md).
+5. Build / run:
 
 ```bash
 flutter pub get
 flutter run
 flutter build apk --release
+# APK: build/app/outputs/flutter-apk/app-release.apk
 ```
+
+Full checklist after Worker deploy: [docs/CONTINUATION.md](../../docs/CONTINUATION.md) §7–8.
 
 ## Security
 

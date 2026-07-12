@@ -93,10 +93,12 @@ npx wrangler kv namespace create RATE_LIMIT
 
 ## 4. Flutter app
 
+After Firebase + Worker URL are in `config.dart`, create a room (§6) then build (§7). Short commands:
+
 ```bash
 cd apps/mobile
 flutter pub get
-# Place google-services.json
+# Place google-services.json + fill config.dart first
 flutter run
 # Release APK:
 flutter build apk --release
@@ -125,18 +127,105 @@ Distribute via **GitHub Releases** (sideload). Unknown sources required on devic
 
 ---
 
-## 6. Room usage (mobile Firebase only)
+## 6. Create a chat room (mobile Firestore — browser)
 
-Rooms live in the **mobile** Firestore project — they are **not** shared with the PWA.
+Rooms live in the **mobile** Firebase project only — they are **not** shared with the PWA (`chatapp-1dfee`).
 
-1. Create room + members `m1` / `m2` with passwords in the mobile project's Firestore (same schema as web; see `docs/SCHEMA.md`).  
-2. Install APK on both phones.  
-3. Enter room code + member password.  
-4. Chat text goes to mobile Firestore; media goes to Drive under `GitBridge/{roomId}/YYYY/MM/`.
+Do this in [Firebase Console → Firestore](https://console.firebase.google.com/project/gitbridge-mobile/firestore) (use your mobile project ID if different).
+
+### 6a. Room document
+
+1. **Start collection** → Collection ID: `rooms`  
+2. Document ID = room code, e.g. `demo`  
+   Allowed shapes (app validates): lowercase slug `^[a-z][a-z0-9_-]{2,23}$`, or 4–8 digits, or 12–20 alphanumeric.  
+3. Fields:
+
+| Field | Type | Value |
+|---|---|---|
+| `memberCount` | number | `2` |
+| `status` | string | `active` |
+
+### 6b. Password hashes
+
+Login compares **SHA-256 hex** of the plain password (UTF-8, no newline). From the repo (or any machine):
+
+```bash
+echo -n 'pass1' | sha256sum
+echo -n 'pass2' | sha256sum
+```
+
+Copy only the 64-character hex (ignore the ` -` at the end).
+
+Example hashes (plain passwords `pass1` / `pass2`):
+
+| Plain password | `passwordHash` |
+|---|---|
+| `pass1` | `e6c3da5b206634d7f3f3586d747ffdb36b5c675757b380c6a5fe5c570c714349` |
+| `pass2` | `1ba3d16e9881959f8c9a9762854f72c6e6321cdd44358a10a4e939033117eab9` |
+
+Use your own passwords in production; recompute hashes the same way.
+
+### 6c. Members `m1` and `m2`
+
+Under `rooms/{roomId}` → **Start collection** → Collection ID: `members`.
+
+**Document ID `m1`:**
+
+| Field | Type | Value |
+|---|---|---|
+| `id` | string | `m1` |
+| `name` | string | `Member 1` |
+| `passwordHash` | string | hash for that member’s password |
+
+**Document ID `m2`:** same fields with `id` / `name` = `m2` / `Member 2` and the other hash.
+
+In the app: room code = document ID (e.g. `demo`), password = plain text you hashed (e.g. `pass1`).
+
+More message fields: `docs/SCHEMA.md`.
+
+### 6d. Use the room
+
+1. Build/install APK (section 7).  
+2. On two phones: enter room code + each member password.  
+3. Text → mobile Firestore; media → Drive via Worker under `GitBridge/{roomId}/YYYY/MM/`.
 
 ---
 
-## 7. Bangla error meanings (client)
+## 7. Build & install APK
+
+Prerequisites: Flutter on `PATH`, `ANDROID_HOME` set, real `google-services.json`, and `mediaWorkerBaseUrl` in `apps/mobile/lib/config.dart`.
+
+```bash
+export PATH="$HOME/flutter/bin:$PATH"
+export ANDROID_HOME="$HOME/Android/Sdk"
+cd apps/mobile
+flutter pub get
+flutter build apk --release
+```
+
+APK path:
+
+```text
+apps/mobile/build/app/outputs/flutter-apk/app-release.apk
+```
+
+Sideload onto phones (allow install from unknown sources). Optional debug run:
+
+```bash
+flutter run
+# or override Worker URL:
+flutter run --dart-define=MEDIA_WORKER_URL=https://gitbridge-media-upload.YOUR_SUBDOMAIN.workers.dev
+```
+
+Health check after deploy:
+
+```bash
+curl https://gitbridge-media-upload.YOUR_SUBDOMAIN.workers.dev/health
+```
+
+---
+
+## 8. Bangla error meanings (client)
 
 | Situation | Message |
 |---|---|
@@ -149,7 +238,7 @@ Rooms live in the **mobile** Firestore project — they are **not** shared with 
 
 ---
 
-## 8. Cost (free-tier oriented)
+## 9. Cost (free-tier oriented)
 
 | Piece | Notes |
 |---|---|

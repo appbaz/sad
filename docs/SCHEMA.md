@@ -1,4 +1,31 @@
-# Message schema (Firestore)
+# Firestore schema (mobile project)
+
+PWA uses a different Firebase project. Mobile data lives only under the Flutter project (e.g. `gitbridge-mobile`).
+
+## Room
+
+`rooms/{roomId}`
+
+| Field | Type | Notes |
+|---|---|---|
+| memberCount | number | usually `2` |
+| status | string | `active` |
+
+`roomId` must match app validation (see SETUP §6a).
+
+## Members
+
+`rooms/{roomId}/members/{username}` — document IDs typically `m1` and `m2`
+
+| Field | Type | Notes |
+|---|---|---|
+| id | string | same as document id (`m1` / `m2`) |
+| name | string | display name |
+| passwordHash | string | SHA-256 hex of plain password (`echo -n 'pass' \| sha256sum`) |
+
+How to create in Console: `docs/SETUP.md` §6.
+
+## Messages
 
 Collection: `rooms/{roomId}/messages/{msgId}`
 

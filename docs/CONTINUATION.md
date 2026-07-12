@@ -17,12 +17,13 @@ Use this after copying/moving the repo to a new disk. Do **not** re-implement th
 - [x] Flutter 3.44.6 stable at `~/flutter` + `flutter pub get` + analyze clean
 - [x] Android SDK + cmdline-tools + licenses (`ANDROID_HOME=~/Android/Sdk`)
 - [x] Firebase CLI 15.23.0 (`firebase-tools`)
-- [ ] Create **separate** Firebase project for mobile (not `chatapp-1dfee`) + deploy rules
-- [ ] Real `google-services.json` + fill `config.dart` (still placeholders)
-- [ ] Drive OAuth secrets
-- [ ] Cloudflare `wrangler login` + secrets + deploy
-- [ ] Set `mediaWorkerBaseUrl` / `MEDIA_WORKER_URL`
-- [ ] Release APK
+- [x] Separate Firebase project `gitbridge-mobile` + rules (Console Publish OK)
+- [x] Real `google-services.json` + `config.dart` Firebase fields
+- [x] Drive OAuth + refresh token
+- [x] Cloudflare secrets + deploy → `https://gitbridge-media-upload.gitbridge-mobile.workers.dev`
+- [x] `mediaWorkerBaseUrl` set in `config.dart`
+- [ ] Create room + `m1`/`m2` in mobile Firestore (see below / SETUP §6)
+- [ ] Release APK (see below / SETUP §7)
 
 PATH helpers were appended to `~/.bashrc` (`~/flutter/bin`, `ANDROID_HOME`).
 
@@ -102,17 +103,39 @@ Set `mediaWorkerBaseUrl` in `apps/mobile/lib/config.dart`
 flutter run --dart-define=MEDIA_WORKER_URL=https://YOUR_SUBDOMAIN.workers.dev
 ```
 
-### 7. Build & install APK
+This machine’s Worker URL:
+
+```text
+https://gitbridge-media-upload.gitbridge-mobile.workers.dev
+```
+
+### 7. Create room + members (mobile Firestore) — **next if not done**
+
+Full browser steps: **[docs/SETUP.md §6](SETUP.md)**.
+
+Short version:
+
+1. Console → project **`gitbridge-mobile`** → Firestore  
+2. `rooms/{roomId}` with `memberCount: 2`, `status: "active"` (e.g. roomId `demo`)  
+3. Hash passwords: `echo -n 'YOUR_PASSWORD' | sha256sum`  
+4. `rooms/{roomId}/members/m1` and `m2` with `id`, `name`, `passwordHash`  
+
+Example hashes for `pass1` / `pass2` are in SETUP §6b.
+
+### 8. Build & install APK — **next after room exists**
+
+Full steps: **[docs/SETUP.md §7](SETUP.md)**.
 
 ```bash
 export PATH="$HOME/flutter/bin:$PATH"
 export ANDROID_HOME="$HOME/Android/Sdk"
 cd apps/mobile
+flutter pub get
 flutter build apk --release
 # APK: build/app/outputs/flutter-apk/app-release.apk
 ```
 
-Sideload on phones; create rooms/members in the **mobile** Firestore (not the PWA project).
+Sideload; log in with room code + plain passwords (not the hash).
 
 ## Do not commit
 
