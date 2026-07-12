@@ -20,7 +20,8 @@ class AppConfig {
   static const String mediaWorkerBaseUrl =
       String.fromEnvironment(
         'MEDIA_WORKER_URL',
-        defaultValue: 'https://gitbridge-media-upload.example.workers.dev',
+        defaultValue:
+            'https://gitbridge-media-upload.gitbridge-mobile.workers.dev',
       );
 
   static const int maxImageBytes = 2 * 1024 * 1024;
