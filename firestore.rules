@@ -36,14 +36,47 @@ service cloud.firestore {
         : request.resource.data.type;
     }
 
-    function validImageUrl() {
-      return request.resource.data.imageUrl is string
-        && request.resource.data.imageUrl.size() > 0
+    /** Allow data URLs (legacy PWA), Firebase Storage, Google Drive, and media Worker proxy */
+    function validMediaUrl(url) {
+      return url is string
+        && url.size() > 0
+        && url.size() <= 2048
         && (
-          (request.resource.data.imageUrl.matches('https://firebasestorage.googleapis.com/.*')
-            && request.resource.data.imageUrl.size() <= 2048)
-          || (request.resource.data.imageUrl.matches('data:image/.*')
-            && request.resource.data.imageUrl.size() <= 750000)
+          url.matches('https://firebasestorage.googleapis.com/.*')
+          || url.matches('https://drive.google.com/.*')
+          || url.matches('https://lh3.googleusercontent.com/.*')
+          || url.matches('https://.*\\.workers\\.dev/.*')
+          || url.matches('https://media\\..*')
+        );
+    }
+
+    function validImageUrl() {
+      return (
+          validMediaUrl(request.resource.data.imageUrl)
+          || (
+            request.resource.data.imageUrl is string
+            && request.resource.data.imageUrl.matches('data:image/.*')
+            && request.resource.data.imageUrl.size() <= 750000
+          )
+        )
+        && (
+          !('imageThumbUrl' in request.resource.data)
+          || request.resource.data.imageThumbUrl == null
+          || validMediaUrl(request.resource.data.imageThumbUrl)
+          || (
+            request.resource.data.imageThumbUrl is string
+            && request.resource.data.imageThumbUrl.matches('data:image/.*')
+            && request.resource.data.imageThumbUrl.size() <= 750000
+          )
+        );
+    }
+
+    function validVideoUrl() {
+      return validMediaUrl(request.resource.data.videoUrl)
+        && (
+          !('videoThumbUrl' in request.resource.data)
+          || request.resource.data.videoThumbUrl == null
+          || validMediaUrl(request.resource.data.videoThumbUrl)
         );
     }
 
@@ -56,9 +89,10 @@ service cloud.firestore {
         && request.auth.uid == request.resource.data.senderUid
         && request.resource.data.senderId is string
         && request.resource.data.senderName is string
-        && (t == 'text' || t == 'link' || t == 'image' || t == 'system')
+        && (t == 'text' || t == 'link' || t == 'image' || t == 'video' || t == 'system')
         && hasText
         && (t != 'image' || validImageUrl())
+        && (t != 'video' || validVideoUrl())
         && (t != 'link' || (
           request.resource.data.linkUrl is string
           && request.resource.data.linkUrl.size() > 0
@@ -70,6 +104,7 @@ service cloud.firestore {
       return changed.hasOnly([
           'readBy', 'read', 'deliveredBy', 'deletedAt', 'deletedBy', 'hiddenFor',
           'imageUrl', 'imageThumbUrl', 'imageStripped', 'imageStrippedAt',
+          'videoUrl', 'videoThumbUrl', 'driveFileId',
           'linkUrl', 'linkPreview',
           'reactions', 'pinned', 'pinnedAt', 'editedAt', 'text'
         ]);

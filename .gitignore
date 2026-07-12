@@ -1,0 +1,9 @@
+# Secrets & local artifacts — do not commit
+**/*-service-account.json
+**/.dev.vars
+**/google-services.json
+!**/google-services.json.example
+.env
+.env.*
+apps/mobile/android/app/google-services.json
+workers/media-upload/.wrangler/

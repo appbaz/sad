@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "REPLACE_MOBILE_SENDER_ID",
+    "project_id": "gitbridge-mobile",
+    "storage_bucket": "gitbridge-mobile.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:REPLACE_MOBILE_SENDER_ID:android:REPLACE_MOBILE_APP_ID",
+        "android_client_info": {
+          "package_name": "com.gitbridge.gitbridge_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "REPLACE_MOBILE_API_KEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

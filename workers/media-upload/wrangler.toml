@@ -1,0 +1,22 @@
+name = "gitbridge-media-upload"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Bind KV for rate limiting (create with: wrangler kv namespace create RATE_LIMIT)
+# [[kv_namespaces]]
+# binding = "RATE_LIMIT"
+# id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+[vars]
+# Must match the Flutter mobile Firebase project (NOT the PWA chatapp-1dfee).
+FIREBASE_PROJECT_ID = "gitbridge-mobile"
+DRIVE_ROOT_FOLDER_NAME = "GitBridge"
+MAX_IMAGE_BYTES = "2097152"
+MAX_VIDEO_BYTES = "26214400"
+
+# Secrets (set via `wrangler secret put`):
+# DRIVE_CLIENT_ID
+# DRIVE_CLIENT_SECRET
+# DRIVE_REFRESH_TOKEN
+# FIREBASE_PROJECT_ID (optional override)

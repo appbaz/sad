@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "gitbridge-mobile",
+    "mobile": "gitbridge-mobile",
+    "pwa": "chatapp-1dfee"
+  }
+}

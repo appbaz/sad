@@ -1,0 +1,7 @@
+# Cloudflare Worker — media upload
+node_modules/
+.wrangler/
+.dev.vars
+*.pem
+*-service-account.json
+.env
