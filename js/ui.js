@@ -238,6 +238,35 @@ export function setNotifySettingsMenuVisible(visible) {
   document.getElementById("notifySettingsBtn")?.classList.toggle("d-none", !visible);
 }
 
+/** Update topbar bell: ready | app_off | blocked | admin_off | unsupported */
+export function updateNotifyBellState(chip) {
+  const btn = document.getElementById("notifySettingsBtn");
+  if (!btn) return;
+  const state = chip || "off";
+  const mapped =
+    state === "ready"
+      ? "ready"
+      : state === "blocked"
+        ? "blocked"
+        : state === "admin_off"
+          ? "admin_off"
+          : state === "unsupported"
+            ? "unsupported"
+            : "off";
+  btn.dataset.notifyState = mapped;
+  const titles = {
+    ready: "নোটিফিকেশন প্রস্তুত",
+    blocked: "নোটিফিকেশন ব্লক — সেটিংস খুলুন",
+    admin_off: "অ্যাডমিন নোটিফ বন্ধ",
+    unsupported: "নোটিফিকেশন সাপোর্ট নেই",
+    off: "নোটিফিকেশন বন্ধ — সেটিংস খুলুন",
+  };
+  btn.title = titles[mapped] || titles.off;
+  btn.setAttribute("aria-label", btn.title);
+  const dot = btn.querySelector(".notify-bell-dot");
+  if (dot) dot.classList.toggle("d-none", mapped !== "blocked");
+}
+
 const CHIP_LABELS = {
   ready: "প্রস্তুত",
   app_off: "বন্ধ (অ্যাপ)",
@@ -286,6 +315,8 @@ export function renderNotifySettingsSheet(snap) {
     chip.className = `notify-chip ${CHIP_CLASS[key] || "chip-off"}`;
   }
 
+  updateNotifyBellState(snap.chip);
+
   const toggle = document.getElementById("notifyReceiveToggle");
   if (toggle) toggle.checked = Boolean(snap.enabledInApp);
 
@@ -299,6 +330,44 @@ export function renderNotifySettingsSheet(snap) {
     } else {
       adminLine.classList.add("d-none");
       adminLine.textContent = "";
+    }
+  }
+
+  const quiet = snap.quietHours || { enabled: false, startMin: 23 * 60, endMin: 7 * 60 };
+  const quietToggle = document.getElementById("notifyQuietToggle");
+  if (quietToggle) quietToggle.checked = Boolean(quiet.enabled);
+  const quietRange = document.getElementById("notifyQuietRange");
+  if (quietRange) quietRange.classList.toggle("d-none", !quiet.enabled);
+  const quietStart = document.getElementById("notifyQuietStart");
+  const quietEnd = document.getElementById("notifyQuietEnd");
+  if (quietStart && document.activeElement !== quietStart) {
+    quietStart.value = minutesToHm(quiet.startMin ?? 23 * 60);
+  }
+  if (quietEnd && document.activeElement !== quietEnd) {
+    quietEnd.value = minutesToHm(quiet.endMin ?? 7 * 60);
+  }
+  const quietHint = document.getElementById("notifyQuietHint");
+  if (quietHint) {
+    const show = Boolean(quiet.enabled && snap.quietActiveNow);
+    quietHint.classList.toggle("d-none", !show);
+  }
+
+  const preview = document.getElementById("notifyTextPreview");
+  if (preview) {
+    preview.textContent = snap.pushNotifyText || "—";
+  }
+
+  const lastPush = document.getElementById("notifyLastPushHint");
+  if (lastPush) {
+    if (snap.lastPushOkAt) {
+      lastPush.classList.remove("d-none");
+      lastPush.textContent = `শেষ সফল পুশ: ${new Date(snap.lastPushOkAt).toLocaleString("bn-BD", {
+        dateStyle: "short",
+        timeStyle: "short",
+      })}`;
+    } else {
+      lastPush.classList.add("d-none");
+      lastPush.textContent = "";
     }
   }
 
@@ -340,4 +409,11 @@ export function renderNotifySettingsSheet(snap) {
         others > 0 ? `শুধু এই ডিভাইস রাখুন (অন্য ${others}টি সরান)` : "শুধু এই ডিভাইস রাখুন";
     }
   }
+}
+
+function minutesToHm(mins) {
+  const m = Math.max(0, Math.min(24 * 60 - 1, Number(mins) || 0));
+  const h = String(Math.floor(m / 60)).padStart(2, "0");
+  const mm = String(m % 60).padStart(2, "0");
+  return `${h}:${mm}`;
 }

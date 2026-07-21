@@ -212,8 +212,9 @@
             <button type="button" class="room-menu-item" id="searchMessagesBtn" role="menuitem">মেসেজ খুঁজুন</button>
             <button type="button" class="room-menu-item danger d-none" id="clearChatBtn" role="menuitem">সমস্ত কথোপকথন মুছুন</button>
           </div>
-          <button type="button" class="chat-icon-btn d-none" id="notifySettingsBtn" title="নোটিফিকেশন সেটিংস" aria-label="নোটিফিকেশন সেটিংস">
-            <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2m.995-14.901a1 1 0 1 0-1.99 0A5 5 0 0 0 3 6c0 1.098-.5 6-2 7h14c-1.5-1-2-5.902-2-7 0-2.42-1.72-4.44-4.005-4.901"/></svg>
+          <button type="button" class="chat-icon-btn d-none" id="notifySettingsBtn" title="নোটিফিকেশন সেটিংস" aria-label="নোটিফিকেশন সেটিংস" data-notify-state="off">
+            <svg class="notify-bell-icon" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2m.995-14.901a1 1 0 1 0-1.99 0A5 5 0 0 0 3 6c0 1.098-.5 6-2 7h14c-1.5-1-2-5.902-2-7 0-2.42-1.72-4.44-4.005-4.901"/></svg>
+            <span class="notify-bell-dot d-none" aria-hidden="true"></span>
           </button>
           <button class="chat-icon-btn" id="soundToggleBtn" title="সাউন্ড বন্ধ করুন" aria-label="সাউন্ড টগল">
             <svg id="soundOnIcon" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M6.717 3.55A.5.5 0 0 1 7 4v8a.5.5 0 0 1-.812.39L3.825 10.5H1.5A.5.5 0 0 1 1 10V6a.5.5 0 0 1 .5-.5h2.325l2.363-1.89a.5.5 0 0 1 .529-.06z"/></svg>
@@ -309,6 +310,29 @@
           </span>
           <input type="checkbox" id="notifyReceiveToggle" />
         </label>
+        <label class="notify-toggle-row" for="notifyQuietToggle">
+          <span>
+            <span class="notify-toggle-title">রাতের নোটিফ বন্ধ</span>
+            <span class="notify-toggle-hint">quiet hours — লোকাল সময়</span>
+          </span>
+          <input type="checkbox" id="notifyQuietToggle" />
+        </label>
+        <div id="notifyQuietRange" class="notify-quiet-range d-none">
+          <label class="notify-quiet-field">
+            <span>শুরু</span>
+            <input type="time" id="notifyQuietStart" value="23:00" />
+          </label>
+          <label class="notify-quiet-field">
+            <span>শেষ</span>
+            <input type="time" id="notifyQuietEnd" value="07:00" />
+          </label>
+        </div>
+        <p id="notifyQuietHint" class="notify-quiet-hint d-none">এখন quiet hours চালু — নোটিফ পাঠানো হবে না</p>
+        <div class="notify-preview-block">
+          <div class="notify-section-title">ডিভাইসে দেখাবে</div>
+          <p id="notifyTextPreview" class="notify-text-preview">—</p>
+        </div>
+        <p id="notifyLastPushHint" class="notify-last-push d-none"></p>
         <div id="notifyDeniedGuide" class="notify-denied-guide d-none"></div>
         <div class="notify-actions">
           <button type="button" class="notify-action-btn" id="notifyTestBtn">টেস্ট নোটিফিকেশন</button>

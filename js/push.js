@@ -192,6 +192,94 @@ export async function getRoomAdminPushM1(roomId) {
   }
 }
 
+export async function getRoomPushNotifyText(roomId) {
+  if (!roomId) return DEFAULT_PUSH_NOTIFY_TEXT;
+  try {
+    const snap = await getDoc(doc(db, "rooms", roomId));
+    if (!snap.exists()) return DEFAULT_PUSH_NOTIFY_TEXT;
+    const text = String(snap.data().pushNotifyText || "").trim();
+    return text || DEFAULT_PUSH_NOTIFY_TEXT;
+  } catch {
+    return DEFAULT_PUSH_NOTIFY_TEXT;
+  }
+}
+
+const DEFAULT_QUIET = { enabled: false, startMin: 23 * 60, endMin: 7 * 60, tzOffsetMin: 0 };
+
+export function normalizeQuietHours(raw) {
+  const q = raw && typeof raw === "object" ? raw : {};
+  const startMin = clampMin(q.startMin, DEFAULT_QUIET.startMin);
+  const endMin = clampMin(q.endMin, DEFAULT_QUIET.endMin);
+  const tzOffsetMin = Number.isFinite(Number(q.tzOffsetMin))
+    ? Number(q.tzOffsetMin)
+    : -new Date().getTimezoneOffset();
+  return {
+    enabled: Boolean(q.enabled),
+    startMin,
+    endMin,
+    tzOffsetMin,
+  };
+}
+
+function clampMin(v, fallback) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.min(24 * 60 - 1, Math.round(n)));
+}
+
+export function minutesToTimeInput(mins) {
+  const m = clampMin(mins, 0);
+  const h = String(Math.floor(m / 60)).padStart(2, "0");
+  const mm = String(m % 60).padStart(2, "0");
+  return `${h}:${mm}`;
+}
+
+export function timeInputToMinutes(value) {
+  const m = String(value || "").match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return DEFAULT_QUIET.startMin;
+  return clampMin(Number(m[1]) * 60 + Number(m[2]), 0);
+}
+
+/** Receiver quiet window — uses stored tzOffsetMin (set when receiver saves prefs). */
+export function isQuietHoursActive(quietHours, nowMs = Date.now()) {
+  const q = normalizeQuietHours(quietHours);
+  if (!q.enabled) return false;
+  const d = new Date(nowMs);
+  const utcMins = d.getUTCHours() * 60 + d.getUTCMinutes();
+  const mins = (utcMins + q.tzOffsetMin + 1440 * 3) % 1440;
+  if (q.startMin === q.endMin) return true;
+  if (q.startMin < q.endMin) return mins >= q.startMin && mins < q.endMin;
+  return mins >= q.startMin || mins < q.endMin;
+}
+
+export async function getMemberQuietHours(roomId, memberId) {
+  if (!roomId || !memberId) return normalizeQuietHours(DEFAULT_QUIET);
+  try {
+    const snap = await getDoc(doc(db, "rooms", roomId, "members", memberId));
+    if (!snap.exists()) return normalizeQuietHours(DEFAULT_QUIET);
+    return normalizeQuietHours(snap.data().notifyQuietHours);
+  } catch {
+    return normalizeQuietHours(DEFAULT_QUIET);
+  }
+}
+
+export async function setMemberQuietHours(roomId, memberId, quiet) {
+  if (!roomId || !memberId) return;
+  const next = normalizeQuietHours({
+    ...quiet,
+    tzOffsetMin: -new Date().getTimezoneOffset(),
+  });
+  await updateDoc(doc(db, "rooms", roomId, "members", memberId), {
+    notifyQuietHours: next,
+  });
+  return next;
+}
+
+async function receiverInQuietHours(roomId, memberId) {
+  const q = await getMemberQuietHours(roomId, memberId);
+  return isQuietHoursActive(q);
+}
+
 /**
  * Enable/disable receiving pushes for m1 or m2; on enable also subscribe.
  */
@@ -265,6 +353,17 @@ export async function getNotifySettingsSnapshot(roomId, username) {
   const enabledInApp = await getMemberPushEnabled(roomId, memberId);
   const adminPushM1 = memberId === "m1" ? await getRoomAdminPushM1(roomId) : null;
   const devices = await listPushDevices(roomId, memberId, currentKey);
+  const quietHours = await getMemberQuietHours(roomId, memberId);
+  const quietActiveNow = isQuietHoursActive(quietHours);
+  const pushNotifyText = await getRoomPushNotifyText(roomId);
+
+  let lastPushOkAt = 0;
+  try {
+    const snap = await getDoc(doc(db, "rooms", roomId, "members", memberId));
+    if (snap.exists()) lastPushOkAt = Number(snap.data().lastPushOkAt) || 0;
+  } catch {
+    /* ignore */
+  }
 
   let chip = "ready";
   if (!supported || permission === "unsupported") chip = "unsupported";
@@ -293,6 +392,10 @@ export async function getNotifySettingsSnapshot(roomId, username) {
     currentKey,
     devices,
     deniedSteps: permission === "denied" ? getNotificationDeniedGuideSteps() : [],
+    quietHours,
+    quietActiveNow,
+    pushNotifyText,
+    lastPushOkAt,
   };
 }
 
@@ -356,7 +459,7 @@ export async function keepOnlyThisDevice(roomId, memberId) {
 }
 
 /** Local test — does not use push server. */
-export async function showLocalTestNotification() {
+export async function showLocalTestNotification(titleText) {
   if (typeof Notification === "undefined") {
     const err = new Error("এই ডিভাইসে নোটিফিকেশন সাপোর্ট নেই");
     err.code = "notify-unsupported";
@@ -377,8 +480,12 @@ export async function showLocalTestNotification() {
       throw err;
     }
   }
+  const title =
+    String(titleText || "")
+      .replace(/https?:\/\/\S+/gi, "")
+      .trim() || DEFAULT_PUSH_NOTIFY_TEXT;
   const registration = await navigator.serviceWorker.ready;
-  await registration.showNotification("টেস্ট নোটিফিকেশন", {
+  await registration.showNotification(title, {
     body: "সিস্টেম নোটিফ ঠিক আছে",
     icon: "./icons/icon-192.png",
     badge: "./icons/icon-192.png",
@@ -436,7 +543,7 @@ export async function setM2PushApprove(roomId, approved) {
 
 async function postNotify(roomId, target) {
   const me = auth.currentUser;
-  if (!me || !PUSH_SENDER_URL) return;
+  if (!me || !PUSH_SENDER_URL) return { ok: false };
   const idToken = await me.getIdToken();
   const res = await fetch(`${PUSH_SENDER_URL.replace(/\/$/, "")}/notify`, {
     method: "POST",
@@ -446,10 +553,25 @@ async function postNotify(roomId, target) {
     },
     body: JSON.stringify({ roomId, target }),
   });
-  if (!res.ok && res.status !== 204) {
+  if (res.status === 204) return { ok: true, sent: 0 };
+  if (!res.ok) {
     const text = await res.text().catch(() => "");
     console.warn("postNotify failed:", target, res.status, text.slice(0, 200));
+    return { ok: false };
   }
+  let body = {};
+  try {
+    body = await res.json();
+  } catch {
+    body = {};
+  }
+  const sent = Number(body.sent) || 0;
+  if (sent > 0) {
+    await updateDoc(doc(db, "rooms", roomId, "members", target), {
+      lastPushOkAt: Date.now(),
+    }).catch(() => {});
+  }
+  return { ok: true, sent, ...body };
 }
 
 /**
@@ -466,6 +588,7 @@ export async function notifyM1Device(roomId) {
     if (roomSnap.data().pushNotifyM1 !== true) return;
     const enabled = await getMemberPushEnabled(roomId, "m1");
     if (!enabled) return;
+    if (await receiverInQuietHours(roomId, "m1")) return;
     await postNotify(roomId, "m1");
   } catch (err) {
     console.warn("notifyM1Device:", err);
@@ -483,6 +606,7 @@ export async function notifyM2Device(roomId) {
   try {
     const enabled = await getMemberPushEnabled(roomId, "m2");
     if (!enabled) return;
+    if (await receiverInQuietHours(roomId, "m2")) return;
     await postNotify(roomId, "m2");
   } catch (err) {
     console.warn("notifyM2Device:", err);

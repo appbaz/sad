@@ -1382,6 +1382,89 @@ html, body {
   flex-shrink: 0;
 }
 
+.notify-quiet-range {
+  display: flex;
+  gap: 0.75rem;
+  margin: 0.5rem 0 0.25rem;
+}
+
+.notify-quiet-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  color: #54656f;
+}
+
+.notify-quiet-field input[type="time"] {
+  border: 1px solid #e9edef;
+  border-radius: 8px;
+  padding: 0.45rem 0.5rem;
+  font-size: 0.9rem;
+  color: #111b21;
+  background: #f0f2f5;
+}
+
+.notify-quiet-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: #856404;
+  background: #fff8e6;
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+}
+
+.notify-preview-block {
+  margin-top: 0.85rem;
+}
+
+.notify-text-preview {
+  margin: 0.35rem 0 0;
+  padding: 0.65rem 0.75rem;
+  background: #f0f2f5;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  color: #111b21;
+  word-break: break-word;
+}
+
+.notify-last-push {
+  margin: 0.65rem 0 0;
+  font-size: 0.8rem;
+  color: #667781;
+}
+
+.chat-icon-btn#notifySettingsBtn {
+  position: relative;
+}
+
+.chat-icon-btn#notifySettingsBtn[data-notify-state="off"] .notify-bell-icon,
+.chat-icon-btn#notifySettingsBtn[data-notify-state="blocked"] .notify-bell-icon,
+.chat-icon-btn#notifySettingsBtn[data-notify-state="admin_off"] .notify-bell-icon,
+.chat-icon-btn#notifySettingsBtn[data-notify-state="unsupported"] .notify-bell-icon {
+  opacity: 0.45;
+}
+
+.chat-icon-btn#notifySettingsBtn[data-notify-state="ready"] .notify-bell-icon {
+  opacity: 1;
+}
+
+.notify-bell-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ea4335;
+  border: 1.5px solid #fff;
+}
+
+.chat-icon-btn#notifySettingsBtn[data-notify-state="blocked"] .notify-bell-dot {
+  display: block !important;
+}
+
 .notify-denied-guide {
   margin-top: 0.85rem;
   padding: 0.75rem;
@@ -1392,6 +1475,14 @@ html, body {
   color: #5c2b29;
   white-space: pre-line;
   line-height: 1.45;
+}
+
+.notify-denied-guide::after {
+  content: "ঠিক হলে «স্ট্যাটাস রিফ্রেশ» চাপুন।";
+  display: block;
+  margin-top: 0.5rem;
+  font-weight: 600;
+  color: #008069;
 }
 
 .notify-actions {

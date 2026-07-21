@@ -69,6 +69,8 @@ import {
   showLocalTestNotification,
   keepOnlyThisDevice,
   memberIdForUser,
+  setMemberQuietHours,
+  timeInputToMinutes,
 } from "./push.js";
 import {
   showView,
@@ -100,6 +102,7 @@ import {
   openNotifySettingsSheet,
   closeNotifySettingsSheet,
   renderNotifySettingsSheet,
+  updateNotifyBellState,
   scrollToBottom,
   isOwnMessage,
 } from "./ui.js";
@@ -311,6 +314,9 @@ async function init() {
   document.getElementById("notifySettingsCloseBtn")?.addEventListener("click", () => closeNotifySettingsSheet());
   document.getElementById("notifySettingsBackdrop")?.addEventListener("click", () => closeNotifySettingsSheet());
   document.getElementById("notifyReceiveToggle")?.addEventListener("change", handleNotifyReceiveToggle);
+  document.getElementById("notifyQuietToggle")?.addEventListener("change", handleNotifyQuietChange);
+  document.getElementById("notifyQuietStart")?.addEventListener("change", handleNotifyQuietChange);
+  document.getElementById("notifyQuietEnd")?.addEventListener("change", handleNotifyQuietChange);
   document.getElementById("notifyTestBtn")?.addEventListener("click", handleNotifyTest);
   document.getElementById("notifyRefreshBtn")?.addEventListener("click", () => refreshNotifySettingsSheet());
   document.getElementById("notifyKeepThisDeviceBtn")?.addEventListener("click", handleKeepOnlyThisDevice);
@@ -664,7 +670,9 @@ function enterChat(user) {
   setClearChatVisible(isPrimaryMember(user.username));
   setNotifySettingsMenuVisible(true);
   if (currentRoomId) {
-    syncNotifyPreferenceQuiet(currentRoomId, user.username).catch(() => {});
+    syncNotifyPreferenceQuiet(currentRoomId, user.username)
+      .then(() => refreshNotifyBellOnly())
+      .catch(() => {});
   }
   showView("chat");
   if (!sessionStarted) {
@@ -697,6 +705,7 @@ function exitChat() {
   setClearChatVisible(false);
   setNotifySettingsMenuVisible(false);
   closeNotifySettingsSheet();
+  updateNotifyBellState("off");
   showView("home");
 }
 
@@ -1176,6 +1185,37 @@ async function refreshNotifySettingsSheet() {
   }
 }
 
+async function refreshNotifyBellOnly() {
+  const me = getCurrentUser();
+  if (!currentRoomId || !me) return;
+  try {
+    const snap = await getNotifySettingsSnapshot(currentRoomId, me.username);
+    updateNotifyBellState(snap.chip);
+  } catch {
+    /* ignore */
+  }
+}
+
+async function handleNotifyQuietChange() {
+  const me = getCurrentUser();
+  if (!currentRoomId || !me) return;
+  const enabled = Boolean(document.getElementById("notifyQuietToggle")?.checked);
+  const startMin = timeInputToMinutes(document.getElementById("notifyQuietStart")?.value);
+  const endMin = timeInputToMinutes(document.getElementById("notifyQuietEnd")?.value);
+  const range = document.getElementById("notifyQuietRange");
+  if (range) range.classList.toggle("d-none", !enabled);
+  try {
+    await setMemberQuietHours(currentRoomId, memberIdForUser(me.username), {
+      enabled,
+      startMin,
+      endMin,
+    });
+    await refreshNotifySettingsSheet();
+  } catch (err) {
+    showToast(formatFirebaseError(err));
+  }
+}
+
 async function handleNotifyReceiveToggle(e) {
   const me = getCurrentUser();
   if (!currentRoomId || !me) return;
@@ -1212,7 +1252,13 @@ async function handleNotifyReceiveToggle(e) {
 
 async function handleNotifyTest() {
   try {
-    await showLocalTestNotification();
+    const me = getCurrentUser();
+    let title;
+    if (currentRoomId && me) {
+      const snap = await getNotifySettingsSnapshot(currentRoomId, me.username);
+      title = snap.pushNotifyText;
+    }
+    await showLocalTestNotification(title);
     showToast("টেস্ট নোটিফ পাঠানো হয়েছে", "success");
   } catch (err) {
     if (err?.code === "notify-denied") {
@@ -1249,6 +1295,7 @@ function maybeResubscribePushOnResume() {
       if (sheet && !sheet.classList.contains("d-none") && !sheet.hidden) {
         return refreshNotifySettingsSheet();
       }
+      return refreshNotifyBellOnly();
     })
     .catch(() => {});
 }
