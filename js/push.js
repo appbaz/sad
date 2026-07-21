@@ -138,7 +138,7 @@ async function postNotify(roomId, target) {
   const me = auth.currentUser;
   if (!me || !PUSH_SENDER_URL) return;
   const idToken = await me.getIdToken();
-  await fetch(`${PUSH_SENDER_URL.replace(/\/$/, "")}/notify`, {
+  const res = await fetch(`${PUSH_SENDER_URL.replace(/\/$/, "")}/notify`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -146,6 +146,10 @@ async function postNotify(roomId, target) {
     },
     body: JSON.stringify({ roomId, target }),
   });
+  if (!res.ok && res.status !== 204) {
+    const text = await res.text().catch(() => "");
+    console.warn("postNotify failed:", target, res.status, text.slice(0, 200));
+  }
 }
 
 /**

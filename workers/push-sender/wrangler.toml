@@ -1,0 +1,8 @@
+name = "gitbridge-push"
+main = "src/index.js"
+compatibility_date = "2025-07-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+FIREBASE_PROJECT_ID = "chatapp-1dfee"
+VAPID_SUBJECT = "mailto:tunirma11@gmail.com"
