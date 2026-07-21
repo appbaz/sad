@@ -12,9 +12,9 @@ function urlBase64ToUint8Array(base64String) {
   return out;
 }
 
-function subKey(subscription) {
+export function subKeyFromSubscription(subscription) {
   try {
-    const endpoint = subscription?.endpoint || "";
+    const endpoint = subscription?.endpoint || subscription?.toJSON?.()?.endpoint || "";
     let hash = 0;
     for (let i = 0; i < endpoint.length; i++) {
       hash = (hash * 31 + endpoint.charCodeAt(i)) >>> 0;
@@ -23,6 +23,10 @@ function subKey(subscription) {
   } catch {
     return `s${Date.now().toString(36)}`;
   }
+}
+
+function subKey(subscription) {
+  return subKeyFromSubscription(subscription);
 }
 
 /** Rough platform hint for settings instructions. */
@@ -43,36 +47,34 @@ export function getNotificationPermission() {
 
 /** Bengali steps when browser permission is denied (cannot re-prompt). */
 export function getNotificationDeniedGuide() {
+  return getNotificationDeniedGuideSteps().join("\n");
+}
+
+/** Steps as lines for inline settings sheet (no alert spam). */
+export function getNotificationDeniedGuideSteps() {
   const platform = getNotifyPlatform();
   if (platform === "ios") {
     return [
       "নোটিফিকেশন ব্লক করা আছে — অ্যাপ থেকে আবার Allow চাওয়া যায় না।",
-      "",
-      "এখন করুন:",
       "1. Settings → Notifications → GitBridge (বা সাইট নাম) → Allow",
       "2. Home Screen থেকে অ্যাপ আবার খুলুন",
-      "3. মেনু → নোটিফিকেশন চালু করুন",
-      "",
+      "3. এখানে টগল চালু করুন",
       "না পেলে: Settings → Safari → Advanced → Website Data থেকে সাইট মুছে PWA আবার খুলুন।",
-    ].join("\n");
+    ];
   }
   if (platform === "android") {
     return [
       "নোটিফিকেশন ব্লক করা আছে — অ্যাপ থেকে আবার Allow চাওয়া যায় না।",
-      "",
-      "এখন করুন:",
       "1. ঠিকানাবারের লক/ⓘ → Permissions → Notifications → Allow",
       "   অথবা Settings → Apps → Chrome/অ্যাপ → Notifications → Allow",
-      "2. অ্যাপে ফিরে মেনু → নোটিফিকেশন চালু করুন",
-    ].join("\n");
+      "2. অ্যাপে ফিরে এখানে টগল চালু করুন",
+    ];
   }
   return [
     "নোটিফিকেশন ব্লক করা আছে — অ্যাপ থেকে আবার Allow চাওয়া যায় না।",
-    "",
-    "এখন করুন:",
     "1. ঠিকানাবারের লক/ⓘ → Site settings → Notifications → Allow",
-    "2. পেজ রিফ্রেশ করে মেনু → নোটিফিকেশন চালু করুন",
-  ].join("\n");
+    "2. পেজ রিফ্রেশ করে এখানে টগল চালু করুন",
+  ];
 }
 
 export const NOTIFY_SOFT_ASK =
@@ -140,68 +142,65 @@ async function clearPushSubscription(roomId, memberId) {
 export async function initM1Push(roomId, username) {
   if (!isPrimaryMember(username) || !roomId) return;
   try {
+    const enabled = await getMemberPushEnabled(roomId, "m1");
+    if (!enabled) return;
     await savePushSubscription(roomId, "m1");
   } catch (err) {
     console.warn("initM1Push:", err);
   }
 }
 
-/**
- * Current-device readiness for receiving message notifications (m2).
- * Does not request permission — only reports status.
- */
-export async function getM2DeviceNotifyStatus(roomId) {
-  const supported = Boolean(
-    typeof window !== "undefined" &&
-      "Notification" in window &&
-      "serviceWorker" in navigator &&
-      "PushManager" in window
-  );
-  const permission = supported ? Notification.permission : "unsupported";
-  let subscribed = false;
-  if (supported && permission === "granted") {
-    try {
-      const registration = await navigator.serviceWorker.ready;
-      subscribed = Boolean(await registration.pushManager.getSubscription());
-    } catch {
-      subscribed = false;
-    }
-  }
-  const enabledInApp = roomId ? await getM2PushEnabled(roomId) : false;
-  const ready =
-    supported &&
-    permission === "granted" &&
-    subscribed &&
-    enabledInApp;
-  return { supported, permission, subscribed, enabledInApp, ready };
+function memberIdForUser(username) {
+  return isPrimaryMember(username) ? "m1" : "m2";
 }
 
-/** m2 receive toggle: true = m2 wants notifications (independent of admin). */
-export async function getM2PushEnabled(roomId) {
-  if (!roomId) return false;
+/**
+ * App-level receive preference.
+ * m2: explicit true (legacy pushNotifyApprove).
+ * m1: default true when field missing (backward compatible).
+ */
+export async function getMemberPushEnabled(roomId, memberId) {
+  if (!roomId || !memberId) return false;
   try {
-    const snap = await getDoc(doc(db, "rooms", roomId, "members", "m2"));
+    const snap = await getDoc(doc(db, "rooms", roomId, "members", memberId));
     if (!snap.exists()) return false;
     const d = snap.data();
     if (d.pushNotifyEnabled === true) return true;
-    // legacy approve field treated as receive preference if set true
-    if (d.pushNotifyApprove === true && d.pushNotifyEnabled == null) return true;
+    if (d.pushNotifyEnabled === false) return false;
+    if (memberId === "m2") {
+      if (d.pushNotifyApprove === true && d.pushNotifyEnabled == null) return true;
+      return false;
+    }
+    // m1: missing field → treat as on (existing installs)
+    return true;
+  } catch {
     return false;
+  }
+}
+
+export async function getM2PushEnabled(roomId) {
+  return getMemberPushEnabled(roomId, "m2");
+}
+
+export async function getRoomAdminPushM1(roomId) {
+  if (!roomId) return false;
+  try {
+    const snap = await getDoc(doc(db, "rooms", roomId));
+    return snap.exists() && snap.data().pushNotifyM1 === true;
   } catch {
     return false;
   }
 }
 
 /**
- * Enable/disable m2 receiving pushes; on enable also subscribe device.
- * Throws Error with denied guide text when browser permission is blocked.
+ * Enable/disable receiving pushes for m1 or m2; on enable also subscribe.
  */
-export async function setM2PushEnabled(roomId, enabled) {
-  if (!roomId) return;
+export async function setMemberPushEnabled(roomId, memberId, enabled) {
+  if (!roomId || !memberId) return;
   const on = Boolean(enabled);
 
   if (on && typeof Notification !== "undefined" && Notification.permission === "denied") {
-    await updateDoc(doc(db, "rooms", roomId, "members", "m2"), {
+    await updateDoc(doc(db, "rooms", roomId, "members", memberId), {
       pushNotifyEnabled: false,
       pushNotifyApprove: false,
     }).catch(() => {});
@@ -210,14 +209,14 @@ export async function setM2PushEnabled(roomId, enabled) {
     throw err;
   }
 
-  await updateDoc(doc(db, "rooms", roomId, "members", "m2"), {
+  await updateDoc(doc(db, "rooms", roomId, "members", memberId), {
     pushNotifyEnabled: on,
     pushNotifyApprove: on,
   });
   if (on) {
-    const ok = await savePushSubscription(roomId, "m2");
+    const ok = await savePushSubscription(roomId, memberId);
     if (!ok) {
-      await updateDoc(doc(db, "rooms", roomId, "members", "m2"), {
+      await updateDoc(doc(db, "rooms", roomId, "members", memberId), {
         pushNotifyEnabled: false,
         pushNotifyApprove: false,
       });
@@ -229,51 +228,200 @@ export async function setM2PushEnabled(roomId, enabled) {
       throw new Error("নোটিফিকেশন অনুমতি দিন অথবা সাপোর্টেড ব্রাউজার ব্যবহার করুন");
     }
   } else {
-    await clearPushSubscription(roomId, "m2");
+    await clearPushSubscription(roomId, memberId);
   }
 }
 
+export async function setM2PushEnabled(roomId, enabled) {
+  return setMemberPushEnabled(roomId, "m2", enabled);
+}
+
 /**
- * If OS permission is denied but app toggle is still on → turn off toggle.
- * Returns true if sync turned the toggle off.
+ * Status chip + sheet model for current user.
+ * chip: ready | app_off | blocked | unsupported | admin_off (m1 only)
  */
-export async function syncM2PushWithBrowserPermission(roomId) {
-  if (!roomId) return false;
-  if (typeof Notification === "undefined") return false;
-  if (Notification.permission !== "denied") return false;
-  const enabled = await getM2PushEnabled(roomId);
-  if (!enabled) return false;
-  await updateDoc(doc(db, "rooms", roomId, "members", "m2"), {
-    pushNotifyEnabled: false,
-    pushNotifyApprove: false,
+export async function getNotifySettingsSnapshot(roomId, username) {
+  const memberId = memberIdForUser(username);
+  const supported = Boolean(
+    typeof window !== "undefined" &&
+      "Notification" in window &&
+      "serviceWorker" in navigator &&
+      "PushManager" in window
+  );
+  const permission = supported ? Notification.permission : "unsupported";
+  let subscribed = false;
+  let currentKey = null;
+  if (supported && permission === "granted") {
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const sub = await registration.pushManager.getSubscription();
+      subscribed = Boolean(sub);
+      if (sub) currentKey = subKey(sub.toJSON());
+    } catch {
+      subscribed = false;
+    }
+  }
+
+  const enabledInApp = await getMemberPushEnabled(roomId, memberId);
+  const adminPushM1 = memberId === "m1" ? await getRoomAdminPushM1(roomId) : null;
+  const devices = await listPushDevices(roomId, memberId, currentKey);
+
+  let chip = "ready";
+  if (!supported || permission === "unsupported") chip = "unsupported";
+  else if (permission === "denied") chip = "blocked";
+  else if (!enabledInApp) chip = "app_off";
+  else if (memberId === "m1" && adminPushM1 === false) chip = "admin_off";
+  else if (!subscribed) chip = "app_off";
+  else chip = "ready";
+
+  const ready =
+    chip === "ready" &&
+    permission === "granted" &&
+    subscribed &&
+    enabledInApp &&
+    (memberId !== "m1" || adminPushM1 === true);
+
+  return {
+    memberId,
+    supported,
+    permission,
+    subscribed,
+    enabledInApp,
+    adminPushM1,
+    ready,
+    chip,
+    currentKey,
+    devices,
+    deniedSteps: permission === "denied" ? getNotificationDeniedGuideSteps() : [],
+  };
+}
+
+/** @deprecated use getNotifySettingsSnapshot */
+export async function getM2DeviceNotifyStatus(roomId) {
+  const snap = await getNotifySettingsSnapshot(roomId, "m2");
+  return {
+    supported: snap.supported,
+    permission: snap.permission,
+    subscribed: snap.subscribed,
+    enabledInApp: snap.enabledInApp,
+    ready: snap.ready,
+  };
+}
+
+export async function listPushDevices(roomId, memberId, currentKey = null) {
+  if (!roomId || !memberId) return [];
+  try {
+    const snap = await getDoc(doc(db, "rooms", roomId, "members", memberId));
+    if (!snap.exists()) return [];
+    const subs = snap.data().pushSubs || {};
+    const out = [];
+    for (const [key, val] of Object.entries(subs)) {
+      if (!val || typeof val !== "object") continue;
+      out.push({
+        key,
+        updatedAt: Number(val.updatedAt) || 0,
+        isCurrent: Boolean(currentKey && key === currentKey),
+      });
+    }
+    out.sort((a, b) => b.updatedAt - a.updatedAt);
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/** Remove all pushSubs except this device's current subscription. */
+export async function keepOnlyThisDevice(roomId, memberId) {
+  if (!roomId || !memberId) return 0;
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = await registration.pushManager.getSubscription();
+  if (!subscription) throw new Error("এই ডিভাইসে সাবস্ক্রিপশন নেই — আগে নোটিফ চালু করুন");
+  const current = subKey(subscription.toJSON());
+  const snap = await getDoc(doc(db, "rooms", roomId, "members", memberId));
+  if (!snap.exists()) return 0;
+  const subs = snap.data().pushSubs || {};
+  const updates = {};
+  let removed = 0;
+  for (const key of Object.keys(subs)) {
+    if (key === current) continue;
+    updates[`pushSubs.${key}`] = deleteField();
+    removed += 1;
+  }
+  if (removed) {
+    await updateDoc(doc(db, "rooms", roomId, "members", memberId), updates);
+  }
+  // Ensure current is saved
+  await savePushSubscription(roomId, memberId, { requestIfNeeded: false });
+  return removed;
+}
+
+/** Local test — does not use push server. */
+export async function showLocalTestNotification() {
+  if (typeof Notification === "undefined") {
+    const err = new Error("এই ডিভাইসে নোটিফিকেশন সাপোর্ট নেই");
+    err.code = "notify-unsupported";
+    throw err;
+  }
+  if (Notification.permission === "denied") {
+    const err = new Error(getNotificationDeniedGuide());
+    err.code = "notify-denied";
+    throw err;
+  }
+  if (Notification.permission !== "granted") {
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") {
+      const err = new Error(
+        perm === "denied" ? getNotificationDeniedGuide() : "নোটিফিকেশন অনুমতি দেওয়া হয়নি"
+      );
+      err.code = perm === "denied" ? "notify-denied" : "notify-default";
+      throw err;
+    }
+  }
+  const registration = await navigator.serviceWorker.ready;
+  await registration.showNotification("টেস্ট নোটিফিকেশন", {
+    body: "সিস্টেম নোটিফ ঠিক আছে",
+    icon: "./icons/icon-192.png",
+    badge: "./icons/icon-192.png",
+    tag: "gitbridge-test-notify",
+    renotify: true,
   });
-  await clearPushSubscription(roomId, "m2").catch(() => {});
   return true;
 }
 
-/**
- * After user allows in Settings and returns to the app:
- * if toggle wants notify + permission granted + no sub → subscribe without re-prompt spam.
- */
-export async function resubscribeM2PushIfNeeded(roomId) {
-  if (!roomId) return false;
+export async function syncMemberPushWithBrowserPermission(roomId, memberId) {
+  if (!roomId || !memberId) return false;
+  if (typeof Notification === "undefined") return false;
+  if (Notification.permission !== "denied") return false;
+  const enabled = await getMemberPushEnabled(roomId, memberId);
+  if (!enabled) return false;
+  await updateDoc(doc(db, "rooms", roomId, "members", memberId), {
+    pushNotifyEnabled: false,
+    pushNotifyApprove: false,
+  });
+  await clearPushSubscription(roomId, memberId).catch(() => {});
+  return true;
+}
+
+export async function syncM2PushWithBrowserPermission(roomId) {
+  return syncMemberPushWithBrowserPermission(roomId, "m2");
+}
+
+export async function resubscribeMemberPushIfNeeded(roomId, memberId) {
+  if (!roomId || !memberId) return false;
   if (typeof Notification === "undefined") return false;
   if (Notification.permission !== "granted") return false;
-  const enabled = await getM2PushEnabled(roomId);
+  const enabled = await getMemberPushEnabled(roomId, memberId);
   if (!enabled) return false;
   try {
-    const registration = await navigator.serviceWorker.ready;
-    const existing = await registration.pushManager.getSubscription();
-    if (existing) {
-      // Refresh Firestore copy in case it was cleared
-      await savePushSubscription(roomId, "m2", { requestIfNeeded: false });
-      return true;
-    }
-    return await savePushSubscription(roomId, "m2", { requestIfNeeded: false });
+    return await savePushSubscription(roomId, memberId, { requestIfNeeded: false });
   } catch (err) {
-    console.warn("resubscribeM2PushIfNeeded:", err);
+    console.warn("resubscribeMemberPushIfNeeded:", err);
     return false;
   }
+}
+
+export async function resubscribeM2PushIfNeeded(roomId) {
+  return resubscribeMemberPushIfNeeded(roomId, "m2");
 }
 
 /** @deprecated use getM2PushEnabled */
@@ -305,8 +453,7 @@ async function postNotify(roomId, target) {
 }
 
 /**
- * Notify m1 — only if admin room.pushNotifyM1 is on.
- * Call after m2 successfully sends.
+ * Notify m1 — admin room.pushNotifyM1 + members/m1.pushNotifyEnabled.
  */
 export async function notifyM1Device(roomId) {
   if (!roomId || !PUSH_SENDER_URL) return;
@@ -317,6 +464,8 @@ export async function notifyM1Device(roomId) {
     const roomSnap = await getDoc(doc(db, "rooms", roomId));
     if (!roomSnap.exists()) return;
     if (roomSnap.data().pushNotifyM1 !== true) return;
+    const enabled = await getMemberPushEnabled(roomId, "m1");
+    if (!enabled) return;
     await postNotify(roomId, "m1");
   } catch (err) {
     console.warn("notifyM1Device:", err);
@@ -324,9 +473,7 @@ export async function notifyM1Device(roomId) {
 }
 
 /**
- * Notify m2 — ONLY depends on members/m2.pushNotifyEnabled (chat toggle).
- * Does NOT read or require rooms.pushNotifyM1 (admin can be OFF).
- * Call after m1 successfully sends.
+ * Notify m2 — ONLY members/m2.pushNotifyEnabled (no admin gate).
  */
 export async function notifyM2Device(roomId) {
   if (!roomId || !PUSH_SENDER_URL) return;
@@ -334,8 +481,7 @@ export async function notifyM2Device(roomId) {
   if (!me) return;
 
   try {
-    // Admin panel pushNotifyM1 is intentionally ignored here.
-    const enabled = await getM2PushEnabled(roomId);
+    const enabled = await getMemberPushEnabled(roomId, "m2");
     if (!enabled) return;
     await postNotify(roomId, "m2");
   } catch (err) {
@@ -348,4 +494,4 @@ export async function clearM1PushSubscription(roomId, username) {
   await clearPushSubscription(roomId, "m1");
 }
 
-export { DEFAULT_PUSH_NOTIFY_TEXT };
+export { DEFAULT_PUSH_NOTIFY_TEXT, memberIdForUser };

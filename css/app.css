@@ -1222,6 +1222,237 @@ html, body {
   flex-shrink: 0;
 }
 
+/* Notification settings sheet */
+.notify-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.notify-sheet.d-none,
+.notify-sheet[hidden] {
+  display: none !important;
+}
+
+.notify-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 20, 26, 0.45);
+}
+
+.notify-sheet-panel {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  max-height: min(88vh, 640px);
+  overflow: auto;
+  background: #fff;
+  border-radius: 16px 16px 0 0;
+  padding: 0.5rem 1rem 1.25rem;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.18);
+  animation: notifySheetUp 0.22s var(--ease-out-expo, ease-out);
+}
+
+@keyframes notifySheetUp {
+  from { transform: translateY(24px); opacity: 0.85; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.notify-sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: #d1d7db;
+  margin: 0.35rem auto 0.75rem;
+}
+
+.notify-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.notify-sheet-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #111b21;
+}
+
+.notify-sheet-close {
+  border: none;
+  background: #f0f2f5;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  color: #54656f;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.notify-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.notify-status-label {
+  font-size: 0.9rem;
+  color: #54656f;
+}
+
+.notify-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.notify-chip.chip-ready {
+  background: #d9fdd3;
+  color: #0b6b2f;
+}
+
+.notify-chip.chip-off {
+  background: #f0f2f5;
+  color: #54656f;
+}
+
+.notify-chip.chip-blocked {
+  background: #ffe8e6;
+  color: #b3261e;
+}
+
+.notify-chip.chip-admin {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.notify-chip.chip-unsupported {
+  background: #e8e8e8;
+  color: #667781;
+}
+
+.notify-admin-line {
+  font-size: 0.82rem;
+  color: #856404;
+  background: #fff8e6;
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  margin: 0 0 0.75rem;
+}
+
+.notify-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 0;
+  border-top: 1px solid #f0f2f5;
+  border-bottom: 1px solid #f0f2f5;
+  cursor: pointer;
+}
+
+.notify-toggle-title {
+  display: block;
+  font-size: 0.95rem;
+  color: #111b21;
+  font-weight: 500;
+}
+
+.notify-toggle-hint {
+  display: block;
+  font-size: 0.78rem;
+  color: #667781;
+  margin-top: 0.15rem;
+}
+
+.notify-toggle-row input[type="checkbox"] {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--accent, #25d366);
+  flex-shrink: 0;
+}
+
+.notify-denied-guide {
+  margin-top: 0.85rem;
+  padding: 0.75rem;
+  background: #fff5f5;
+  border-radius: 10px;
+  border: 1px solid #ffc9c4;
+  font-size: 0.82rem;
+  color: #5c2b29;
+  white-space: pre-line;
+  line-height: 1.45;
+}
+
+.notify-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.notify-action-btn {
+  width: 100%;
+  border: none;
+  border-radius: 10px;
+  padding: 0.7rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  background: #008069;
+  color: #fff;
+}
+
+.notify-action-btn.secondary {
+  background: #f0f2f5;
+  color: #111b21;
+}
+
+.notify-action-btn:disabled {
+  opacity: 0.55;
+}
+
+.notify-devices {
+  margin-top: 1.25rem;
+}
+
+.notify-section-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #54656f;
+  margin: 0 0 0.5rem;
+}
+
+.notify-device-list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+}
+
+.notify-device-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid #f0f2f5;
+  font-size: 0.85rem;
+  color: #111b21;
+}
+
+.notify-device-list .device-meta {
+  color: #667781;
+  font-size: 0.75rem;
+}
+
 /* Pinned bar */
 .pinned-bar {
   flex-shrink: 0;

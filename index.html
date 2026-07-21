@@ -211,11 +211,7 @@
           <div id="roomMenu" class="room-menu d-none" role="menu">
             <button type="button" class="room-menu-item" id="searchMessagesBtn" role="menuitem">মেসেজ খুঁজুন</button>
             <button type="button" class="room-menu-item danger d-none" id="clearChatBtn" role="menuitem">সমস্ত কথোপকথন মুছুন</button>
-            <label class="room-menu-item room-menu-toggle d-none" id="m2PushApproveRow" role="menuitem">
-              <span>নোটিফিকেশন চালু</span>
-              <input type="checkbox" id="m2PushApproveToggle" aria-label="নতুন মেসেজের নোটিফিকেশন চালু/বন্ধ" />
-            </label>
-            <button type="button" class="room-menu-item d-none" id="m2DevicePermCheckBtn" role="menuitem">ডিভাইস অনুমতি চেক</button>
+            <button type="button" class="room-menu-item d-none" id="notifySettingsBtn" role="menuitem">নোটিফিকেশন সেটিংস</button>
           </div>
           <button class="chat-icon-btn" id="soundToggleBtn" title="সাউন্ড বন্ধ করুন" aria-label="সাউন্ড টগল">
             <svg id="soundOnIcon" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M6.717 3.55A.5.5 0 0 1 7 4v8a.5.5 0 0 1-.812.39L3.825 10.5H1.5A.5.5 0 0 1 1 10V6a.5.5 0 0 1 .5-.5h2.325l2.363-1.89a.5.5 0 0 1 .529-.06z"/></svg>
@@ -287,6 +283,41 @@
     <div class="install-banner-actions">
       <button type="button" class="btn btn-sm btn-install" id="installBtn">ইনস্টল</button>
       <button type="button" class="btn btn-sm btn-install-dismiss" id="dismissInstallBtn" aria-label="বন্ধ করুন">✕</button>
+    </div>
+  </div>
+
+  <div id="notifySettingsSheet" class="notify-sheet d-none" role="dialog" aria-modal="true" aria-labelledby="notifySettingsTitle" hidden>
+    <div class="notify-sheet-backdrop" id="notifySettingsBackdrop"></div>
+    <div class="notify-sheet-panel">
+      <div class="notify-sheet-handle" aria-hidden="true"></div>
+      <header class="notify-sheet-header">
+        <h2 class="notify-sheet-title" id="notifySettingsTitle">নোটিফিকেশন</h2>
+        <button type="button" class="notify-sheet-close" id="notifySettingsCloseBtn" aria-label="বন্ধ">✕</button>
+      </header>
+      <div class="notify-sheet-body">
+        <div class="notify-status-row">
+          <span class="notify-status-label">স্ট্যাটাস</span>
+          <span id="notifyStatusChip" class="notify-chip chip-off">—</span>
+        </div>
+        <p id="notifyAdminGateLine" class="notify-admin-line d-none"></p>
+        <label class="notify-toggle-row" for="notifyReceiveToggle">
+          <span>
+            <span class="notify-toggle-title">নতুন মেসেজের নোটিফ</span>
+            <span class="notify-toggle-hint">অ্যাপ থেকে চালু/বন্ধ — সেটিংস ছাড়াই</span>
+          </span>
+          <input type="checkbox" id="notifyReceiveToggle" />
+        </label>
+        <div id="notifyDeniedGuide" class="notify-denied-guide d-none"></div>
+        <div class="notify-actions">
+          <button type="button" class="notify-action-btn" id="notifyTestBtn">টেস্ট নোটিফিকেশন</button>
+          <button type="button" class="notify-action-btn secondary" id="notifyRefreshBtn">স্ট্যাটাস রিফ্রেশ</button>
+        </div>
+        <section class="notify-devices">
+          <h3 class="notify-section-title">ডিভাইস</h3>
+          <ul id="notifyDeviceList" class="notify-device-list"></ul>
+          <button type="button" class="notify-action-btn secondary d-none" id="notifyKeepThisDeviceBtn">শুধু এই ডিভাইস রাখুন</button>
+        </section>
+      </div>
     </div>
   </div>
 

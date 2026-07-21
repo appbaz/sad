@@ -234,15 +234,110 @@ export function setClearChatVisible(visible) {
   document.getElementById("clearChatBtn")?.classList.toggle("d-none", !visible);
 }
 
-export function setM2PushApproveVisible(visible) {
-  document.getElementById("m2PushApproveRow")?.classList.toggle("d-none", !visible);
+export function setNotifySettingsMenuVisible(visible) {
+  document.getElementById("notifySettingsBtn")?.classList.toggle("d-none", !visible);
 }
 
-export function setM2PushApproveChecked(checked) {
-  const el = document.getElementById("m2PushApproveToggle");
-  if (el) el.checked = Boolean(checked);
+const CHIP_LABELS = {
+  ready: "প্রস্তুত",
+  app_off: "বন্ধ (অ্যাপ)",
+  blocked: "ব্লক (সেটিংস)",
+  admin_off: "অ্যাডমিন বন্ধ",
+  unsupported: "সাপোর্ট নেই",
+};
+
+const CHIP_CLASS = {
+  ready: "chip-ready",
+  app_off: "chip-off",
+  blocked: "chip-blocked",
+  admin_off: "chip-admin",
+  unsupported: "chip-unsupported",
+};
+
+export function openNotifySettingsSheet() {
+  const sheet = document.getElementById("notifySettingsSheet");
+  if (!sheet) return;
+  sheet.classList.remove("d-none");
+  sheet.hidden = false;
 }
 
-export function setM2DevicePermCheckVisible(visible) {
-  document.getElementById("m2DevicePermCheckBtn")?.classList.toggle("d-none", !visible);
+export function closeNotifySettingsSheet() {
+  const sheet = document.getElementById("notifySettingsSheet");
+  if (!sheet) return;
+  sheet.classList.add("d-none");
+  sheet.hidden = true;
+}
+
+export function isNotifySettingsSheetOpen() {
+  const sheet = document.getElementById("notifySettingsSheet");
+  return Boolean(sheet && !sheet.classList.contains("d-none") && !sheet.hidden);
+}
+
+/**
+ * @param {object} snap — getNotifySettingsSnapshot result
+ */
+export function renderNotifySettingsSheet(snap) {
+  if (!snap) return;
+
+  const chip = document.getElementById("notifyStatusChip");
+  if (chip) {
+    const key = snap.chip || "app_off";
+    chip.textContent = CHIP_LABELS[key] || key;
+    chip.className = `notify-chip ${CHIP_CLASS[key] || "chip-off"}`;
+  }
+
+  const toggle = document.getElementById("notifyReceiveToggle");
+  if (toggle) toggle.checked = Boolean(snap.enabledInApp);
+
+  const adminLine = document.getElementById("notifyAdminGateLine");
+  if (adminLine) {
+    if (snap.memberId === "m1") {
+      adminLine.classList.remove("d-none");
+      adminLine.textContent = snap.adminPushM1
+        ? "রুম অ্যাডমিন m1 নোটিফ চালু রেখেছে"
+        : "রুম অ্যাডমিন m1 নোটিফ বন্ধ রেখেছে — আপনার টগল চালু থাকলেও পুশ আসবে না";
+    } else {
+      adminLine.classList.add("d-none");
+      adminLine.textContent = "";
+    }
+  }
+
+  const guide = document.getElementById("notifyDeniedGuide");
+  if (guide) {
+    if (snap.permission === "denied" && snap.deniedSteps?.length) {
+      guide.classList.remove("d-none");
+      guide.textContent = snap.deniedSteps.join("\n");
+    } else {
+      guide.classList.add("d-none");
+      guide.textContent = "";
+    }
+  }
+
+  const list = document.getElementById("notifyDeviceList");
+  const keepBtn = document.getElementById("notifyKeepThisDeviceBtn");
+  if (list) {
+    const devices = snap.devices || [];
+    if (!devices.length) {
+      list.innerHTML = `<li class="text-muted">কোনো রেজিস্টার্ড ডিভাইস নেই</li>`;
+    } else {
+      list.innerHTML = devices
+        .map((d) => {
+          const when = d.updatedAt
+            ? new Date(d.updatedAt).toLocaleString("bn-BD", {
+                dateStyle: "short",
+                timeStyle: "short",
+              })
+            : "—";
+          const label = d.isCurrent ? "এই ডিভাইস" : "অন্য ডিভাইস";
+          return `<li><span>${label}</span><span class="device-meta">${when}</span></li>`;
+        })
+        .join("");
+    }
+    const others = devices.filter((d) => !d.isCurrent).length;
+    if (keepBtn) {
+      keepBtn.classList.toggle("d-none", others === 0 || !snap.subscribed);
+      keepBtn.textContent =
+        others > 0 ? `শুধু এই ডিভাইস রাখুন (অন্য ${others}টি সরান)` : "শুধু এই ডিভাইস রাখুন";
+    }
+  }
 }

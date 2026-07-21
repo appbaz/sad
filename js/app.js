@@ -61,13 +61,14 @@ import {
   initM1Push,
   notifyM1Device,
   notifyM2Device,
-  getM2PushEnabled,
-  setM2PushEnabled,
-  getM2DeviceNotifyStatus,
-  getNotificationDeniedGuide,
   NOTIFY_SOFT_ASK,
-  syncM2PushWithBrowserPermission,
-  resubscribeM2PushIfNeeded,
+  getNotifySettingsSnapshot,
+  setMemberPushEnabled,
+  syncMemberPushWithBrowserPermission,
+  resubscribeMemberPushIfNeeded,
+  showLocalTestNotification,
+  keepOnlyThisDevice,
+  memberIdForUser,
 } from "./push.js";
 import {
   showView,
@@ -95,9 +96,10 @@ import {
   resetMessageRenderCache,
   toggleRoomMenu,
   setClearChatVisible,
-  setM2PushApproveVisible,
-  setM2PushApproveChecked,
-  setM2DevicePermCheckVisible,
+  setNotifySettingsMenuVisible,
+  openNotifySettingsSheet,
+  closeNotifySettingsSheet,
+  renderNotifySettingsSheet,
   scrollToBottom,
   isOwnMessage,
 } from "./ui.js";
@@ -305,9 +307,13 @@ async function init() {
   });
   document.getElementById("searchMessagesBtn")?.addEventListener("click", handleOpenSearch);
   document.getElementById("clearChatBtn")?.addEventListener("click", handleClearChat);
-  document.getElementById("m2PushApproveToggle")?.addEventListener("change", handleM2PushApproveToggle);
-  document.getElementById("m2PushApproveRow")?.addEventListener("click", (e) => e.stopPropagation());
-  document.getElementById("m2DevicePermCheckBtn")?.addEventListener("click", handleM2DevicePermCheck);
+  document.getElementById("notifySettingsBtn")?.addEventListener("click", handleOpenNotifySettings);
+  document.getElementById("notifySettingsCloseBtn")?.addEventListener("click", () => closeNotifySettingsSheet());
+  document.getElementById("notifySettingsBackdrop")?.addEventListener("click", () => closeNotifySettingsSheet());
+  document.getElementById("notifyReceiveToggle")?.addEventListener("change", handleNotifyReceiveToggle);
+  document.getElementById("notifyTestBtn")?.addEventListener("click", handleNotifyTest);
+  document.getElementById("notifyRefreshBtn")?.addEventListener("click", () => refreshNotifySettingsSheet());
+  document.getElementById("notifyKeepThisDeviceBtn")?.addEventListener("click", handleKeepOnlyThisDevice);
   document.addEventListener("click", () => toggleRoomMenu(false));
 
   onRouteChange(async (route) => {
@@ -656,11 +662,9 @@ async function startChatFromLogin(roomId, password) {
 function enterChat(user) {
   if (isAdminRoute()) return;
   setClearChatVisible(isPrimaryMember(user.username));
-  const isM2 = !isPrimaryMember(user.username);
-  setM2PushApproveVisible(isM2);
-  setM2DevicePermCheckVisible(isM2);
-  if (isM2 && currentRoomId) {
-    syncAndRefreshM2PushToggle(currentRoomId);
+  setNotifySettingsMenuVisible(true);
+  if (currentRoomId) {
+    syncNotifyPreferenceQuiet(currentRoomId, user.username).catch(() => {});
   }
   showView("chat");
   if (!sessionStarted) {
@@ -677,21 +681,11 @@ function enterChat(user) {
   }
 }
 
-/** Sync denied→off, then refresh checkbox; resubscribe if Settings just allowed. */
-async function syncAndRefreshM2PushToggle(roomId) {
-  try {
-    const turnedOff = await syncM2PushWithBrowserPermission(roomId);
-    if (turnedOff) {
-      setM2PushApproveChecked(false);
-      alert(getNotificationDeniedGuide());
-      return;
-    }
-    await resubscribeM2PushIfNeeded(roomId);
-    const enabled = await getM2PushEnabled(roomId);
-    setM2PushApproveChecked(enabled);
-  } catch {
-    setM2PushApproveChecked(false);
-  }
+/** Sync denied→off + resubscribe without alert spam (alerts live in the sheet). */
+async function syncNotifyPreferenceQuiet(roomId, username) {
+  const memberId = memberIdForUser(username);
+  await syncMemberPushWithBrowserPermission(roomId, memberId);
+  await resubscribeMemberPushIfNeeded(roomId, memberId);
 }
 
 function exitChat() {
@@ -701,8 +695,8 @@ function exitChat() {
   currentRoomId = null;
   clearChatLocalState();
   setClearChatVisible(false);
-  setM2PushApproveVisible(false);
-  setM2DevicePermCheckVisible(false);
+  setNotifySettingsMenuVisible(false);
+  closeNotifySettingsSheet();
   showView("home");
 }
 
@@ -1162,95 +1156,101 @@ async function handleClearChat() {
   }
 }
 
-async function handleM2PushApproveToggle(e) {
-  e.stopPropagation();
+async function handleOpenNotifySettings() {
+  toggleRoomMenu(false);
   const me = getCurrentUser();
-  if (!currentRoomId || !me || isPrimaryMember(me.username)) return;
+  if (!currentRoomId || !me) return;
+  openNotifySettingsSheet();
+  await refreshNotifySettingsSheet();
+}
+
+async function refreshNotifySettingsSheet() {
+  const me = getCurrentUser();
+  if (!currentRoomId || !me) return;
+  try {
+    await syncNotifyPreferenceQuiet(currentRoomId, me.username);
+    const snap = await getNotifySettingsSnapshot(currentRoomId, me.username);
+    renderNotifySettingsSheet(snap);
+  } catch (err) {
+    showToast(formatFirebaseError(err));
+  }
+}
+
+async function handleNotifyReceiveToggle(e) {
+  const me = getCurrentUser();
+  if (!currentRoomId || !me) return;
   const enabled = Boolean(e.target?.checked);
+  const memberId = memberIdForUser(me.username);
 
   if (enabled) {
     if (typeof Notification !== "undefined" && Notification.permission === "denied") {
-      setM2PushApproveChecked(false);
-      alert(getNotificationDeniedGuide());
+      e.target.checked = false;
+      await refreshNotifySettingsSheet();
+      showToast("সেটিংস থেকে নোটিফিকেশন Allow করুন", "danger");
       return;
     }
     if (!confirm(NOTIFY_SOFT_ASK)) {
-      setM2PushApproveChecked(false);
+      e.target.checked = false;
       return;
     }
   }
 
   try {
-    await setM2PushEnabled(currentRoomId, enabled);
+    await setMemberPushEnabled(currentRoomId, memberId, enabled);
+    showToast(enabled ? "নোটিফিকেশন চালু" : "নোটিফিকেশন বন্ধ", "success");
+    await refreshNotifySettingsSheet();
+  } catch (err) {
+    e.target.checked = false;
+    await refreshNotifySettingsSheet();
+    if (err?.code === "notify-denied") {
+      showToast("নোটিফ ব্লক — নিচের গাইড দেখুন", "danger");
+      return;
+    }
+    showToast(formatFirebaseError(err));
+  }
+}
+
+async function handleNotifyTest() {
+  try {
+    await showLocalTestNotification();
+    showToast("টেস্ট নোটিফ পাঠানো হয়েছে", "success");
+  } catch (err) {
+    if (err?.code === "notify-denied") {
+      await refreshNotifySettingsSheet();
+      showToast("নোটিফ ব্লক — গাইড দেখুন", "danger");
+      return;
+    }
+    showToast(err?.message || formatFirebaseError(err));
+  }
+}
+
+async function handleKeepOnlyThisDevice() {
+  const me = getCurrentUser();
+  if (!currentRoomId || !me) return;
+  if (!confirm("অন্য সব ডিভাইসের নোটিফ রেজিস্ট্রেশন মুছে শুধু এই ডিভাইস রাখবেন?")) return;
+  try {
+    const removed = await keepOnlyThisDevice(currentRoomId, memberIdForUser(me.username));
     showToast(
-      enabled ? "নোটিফিকেশন চালু" : "নোটিফিকেশন বন্ধ",
+      removed > 0 ? `${removed}টি অন্য ডিভাইস সরানো হয়েছে` : "শুধু এই ডিভাইসই ছিল",
       "success"
     );
+    await refreshNotifySettingsSheet();
   } catch (err) {
-    setM2PushApproveChecked(false);
-    if (err?.code === "notify-denied") {
-      alert(err.message || getNotificationDeniedGuide());
-      return;
-    }
-    showToast(formatFirebaseError(err));
+    showToast(err?.message || formatFirebaseError(err));
   }
 }
 
-async function handleM2DevicePermCheck() {
-  toggleRoomMenu(false);
+function maybeResubscribePushOnResume() {
   const me = getCurrentUser();
-  if (!currentRoomId || !me || isPrimaryMember(me.username)) return;
-
-  try {
-    await syncAndRefreshM2PushToggle(currentRoomId);
-    const canSend = await validateDeviceSession(currentRoomId, me.username);
-    const status = await getM2DeviceNotifyStatus(currentRoomId);
-
-    const sendLine = canSend
-      ? "মেসেজ পাঠানো: অনুমতি আছে (এই ডিভাইস সক্রিয়)"
-      : "মেসেজ পাঠানো: অনুমতি নেই (অন্য ডিভাইসে সেশন বা সেশন নেই)";
-
-    let notifLine;
-    if (!status.supported) {
-      notifLine = "নোটিফিকেশন: এই ব্রাউজার/ডিভাইসে সাপোর্ট নেই";
-    } else if (status.permission === "granted") {
-      notifLine = "নোটিফিকেশন অনুমতি: মঞ্জুর";
-    } else if (status.permission === "denied") {
-      notifLine = "নোটিফিকেশন অনুমতি: বন্ধ (সেটিংস থেকে চালু করুন)";
-    } else {
-      notifLine = "নোটিফিকেশন অনুমতি: এখনো দেওয়া হয়নি";
-    }
-
-    const subLine = status.subscribed
-      ? "পুশ সাবস্ক্রিপশন: আছে"
-      : "পুশ সাবস্ক্রিপশন: নেই";
-    const toggleLine = status.enabledInApp
-      ? "অ্যাপে নোটিফ টগল: চালু"
-      : "অ্যাপে নোটিফ টগল: বন্ধ";
-    const readyLine = status.ready
-      ? "সারাংশ: m1 মেসেজের নোটিফ এই ডিভাইসে আসতে পারবে"
-      : "সারাংশ: নোটিফ আসবে না — উপরের সমস্যা ঠিক করুন";
-
-    alert([sendLine, notifLine, subLine, toggleLine, readyLine].join("\n"));
-
-    if (status.permission === "denied") {
-      alert(getNotificationDeniedGuide());
-    }
-
-    showToast(
-      status.ready && canSend ? "ডিভাইস প্রস্তুত" : "ডিভাইসে সমস্যা আছে",
-      status.ready && canSend ? "success" : "danger"
-    );
-  } catch (err) {
-    showToast(formatFirebaseError(err));
-  }
-}
-
-function maybeResubscribeM2PushOnResume() {
-  const me = getCurrentUser();
-  if (!me || !currentRoomId || isPrimaryMember(me.username)) return;
-  if (!sessionStarted) return;
-  syncAndRefreshM2PushToggle(currentRoomId).catch(() => {});
+  if (!me || !currentRoomId || !sessionStarted) return;
+  syncNotifyPreferenceQuiet(currentRoomId, me.username)
+    .then(() => {
+      const sheet = document.getElementById("notifySettingsSheet");
+      if (sheet && !sheet.classList.contains("d-none") && !sheet.hidden) {
+        return refreshNotifySettingsSheet();
+      }
+    })
+    .catch(() => {});
 }
 
 async function handleRetry(localId) {
@@ -1329,7 +1329,7 @@ function startChatSession() {
   if (isPrimaryMember(me.username)) {
     initM1Push(currentRoomId, me.username).catch(() => {});
   } else {
-    syncAndRefreshM2PushToggle(currentRoomId).catch(() => {});
+    syncNotifyPreferenceQuiet(currentRoomId, me.username).catch(() => {});
   }
 }
 
@@ -1483,14 +1483,14 @@ function initDeviceLifecycle() {
       sendHeartbeat().then((result) => {
         if (result?.revoked) handleRemoteLogout().catch(() => {});
       });
-      maybeResubscribeM2PushOnResume();
+      maybeResubscribePushOnResume();
     });
   });
 
   window.addEventListener("focus", () => {
     if (sessionStarted || isChatAuthenticated()) {
       enforceIdleOrContinue().catch(() => {});
-      maybeResubscribeM2PushOnResume();
+      maybeResubscribePushOnResume();
     }
   });
 

@@ -1,4 +1,4 @@
-const CACHE_NAME = "gitbridge-v62";
+const CACHE_NAME = "gitbridge-v63";
 
 const ASSETS = [
   "./",
@@ -150,12 +150,20 @@ self.addEventListener("push", (event) => {
 
   const NOTIFY_TAG = "gitbridge-chat-notify";
 
-  // Close any existing drawer items with this tag, then show one replacement.
+  // Skip drawer notification when chat is already focused (in-app sound is enough).
   event.waitUntil(
     (async () => {
+      const windowClients = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+      const chatFocused = windowClients.some(
+        (c) => c.visibilityState === "visible" && c.focused
+      );
+      if (chatFocused) return;
+
       const existing = await self.registration.getNotifications({ tag: NOTIFY_TAG });
       for (const n of existing) n.close();
-      // Also close legacy tag from older builds
       const legacy = await self.registration.getNotifications({ tag: "gitbridge-m1-notify" });
       for (const n of legacy) n.close();
 
